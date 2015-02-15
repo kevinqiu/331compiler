@@ -6,11 +6,14 @@ import scalaz._
 import scala.util.{Try, Success, Failure}
 import CS331.errors._;
 
-class LexicalAnalyzer(var stream: CharStream) {
+class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
-  abstract class Token{}
-  case class INTCONSTANT(value: Int) extends Token
-  case class REALCONSTANT(value: Double) extends Token
+  val keywords = List(PROGRAM(), BEGIN(), END(), VAR(), FUNCTION(), PROCEDURE(), RESULT(), INTEGER(), REAL(), ARRAYTOKEN(), OF(), IF(), THEN(), ELSE(), WHILE(), DO(), NOT())
+
+  val relops = List("=", "<>", "<", ">","<=",">=")
+  val addops = List("+", "-", "OR")
+  val mulops = List("*", "/", "DIV", "MOD", "AND")
+  val symbols = List(ASSIGNOP(), COMMA(), SEMICOLON(), COLON(), RIGHTPAREN(), LEFTPAREN(), RIGHTBRACKET(), LEFTBRACKET(), UNARYMINUS(), UNARYPLUS(), DOUBLEDOT(), ENDMARKER())
 
   def isPeriod(c: Char) = {
     c == '.'
@@ -28,83 +31,94 @@ class LexicalAnalyzer(var stream: CharStream) {
     isOperator(c) || isSeparator(c) || c.isSpaceChar
   }
 
-  def getToken() = {
-      try {
-        val peek = peekChar()
-        if (peek.isLetter) {
-        } else if (peek.isDigit) {
-          processNumber()
-        }
-      } catch {
-        case e: Exception => Failure(e)
-      }
+  def matchKeywordList(l: List[Token with Keyword], s: StringBuilder): Option[Token] = {
+    l.find(x => x.value.equalsIgnoreCase(s.toString))
+  }
 
-    def peekChar(twoCharLookahead:Boolean = false) = {
-      val c = stream.currentChar
-      if (twoCharLookahead) {
-        val d = stream.currentChar
-        stream.pushBack(c)
-        stream.pushBack(d)
-        d
+  def peekChar(twoCharLookahead:Boolean = false) = {
+    val c = stream.currentChar
+    if (twoCharLookahead) {
+      val d = stream.currentChar
+      stream.pushBack(c)
+      stream.pushBack(d)
+      d
+    } else {
+      stream.pushBack(c)
+      c
+    }
+  }
+
+  def getChar() = {
+    stream.currentChar
+  }
+
+  def processIdentifier(s: StringBuilder) : Try[Token] = {
+    if (s.head.isLetter) {
+      if(s.forall{ x => x.isLetterOrDigit }) {
+        val matchingKeyword: Option[Token] = matchKeywordList(keywords, s)
+        Success(matchingKeyword.getOrElse(IDENTIFIER(s.toString)))
       } else {
-        stream.pushBack(c)
-        c
+        Failure(new Exception("Idenifier has non alphanumeric characters"))
       }
     }
+    else {
+      Failure(new Exception("Idenifier doesn't start with letter"))
+    }
+  }
 
-    def getChar() = {
-      stream.currentChar
+  //not finished, working on identifier method first since simpler
+  def processNumber(s: StringBuilder) : Try[Token] = {
+    val number = Try(s.toDouble)
+    number.map(x => if (x.isValidInt) INTCONSTANT(x.toInt) else REALCONSTANT(x))
+  }
+
+  def processOps(s: StringBuilder) : Try[Token] = {
+    def findOpToken(s: StringBuilder, l: List[String], t: (Int, String) => Token) = {
+      val matching = l.find(x => x.equalsIgnoreCase(s.toString))
+      matching.map(m => t(l.indexOf(m)+1, m))
     }
 
-    def processNumber() : Try[Token] = {
-      var token = new StringBuilder
+    val matches = List((relops, RELOP), (mulops, MULOP), (addops, ADDOP)).map({case (l, f) => findOpToken(s, l, f)}).flatten
 
-      def processExponent() = {
-          token += getChar()
-          if (peekChar().isDigit){
-            consumeDigits(token)
-          } else {
-            Failure(new Exception("No digits after exponent"))
-          }
-      }
-
-      def createToken(token: StringBuilder) = {
-        val value = token.toDouble
-        if (value.isValidInt) {
-          Success(INTCONSTANT(value.toInt))
-        } else {
-          Success(REALCONSTANT(value))
-        }
-      }
-
-      def consumeDigits(t: StringBuilder) = {
-        while(peekChar().isDigit) {
-          t += getChar
-        }
-      }
-      token += getChar
-      consumeDigits(token)
-      if (peekChar() == '.'){
-        if (peekChar(true) == '.') {
-          //if two .. are in a row, then .. is separate token
-          createToken(token)
-        } else if (peekChar().isDigit){
-          consumeDigits(token)
-          if (peekChar() == 'E' || peekChar() == 'e'){
-            processExponent()
-          }
-          createToken(token)
-        } else {
-          Failure(new Exception("No digit after ."))
-        }
-      } else if (peekChar() == 'E' || peekChar() == 'e'){
-        processExponent()
-        createToken(token)
-      } else if (isDelim(peekChar())) {
-        createToken(token)
-      } else {
-        Failure(new Exception("Unexpected symbol found while evaluating constant"))
-      }
+    if (matches.nonEmpty) {
+      Success(matches.head)
+    } else {
+      Failure(new Exception("Malformed symbol"))
     }
+  }
+
+  def processSymbols(s: StringBuilder): Try[Token] = {
+    Try(matchKeywordList(symbols, s).head)
+  }
+
+  def eof(s: StringBuilder): Try[Token] = {
+    if (s.head == CharStream.EOF && s.length == 1) {
+      end = true
+      Success(ENDOFFILE())
+    } else {
+      Failure(new Exception("Not end"))
+    }
+  }
+
+  def process(s: StringBuilder): List[Try[Token]] = {
+    List(processIdentifier(s), processNumber(s), processOps(s), processSymbols(s), eof(s))
+  }
+
+  def nextToken() : Try[Token] = {
+    val peek = peekChar()
+    var current = new StringBuilder
+    current += getChar()
+    var possibleToken = process (current)
+    var currentToken = possibleToken
+    while (possibleToken.exists(_.isSuccess)) {
+      current += getChar()
+      currentToken = possibleToken
+      possibleToken = process (current)
+    }
+    currentToken.find(_.isSuccess).getOrElse(currentToken.head)
+  }
+
+  def getToken(): Try[Token] = {
+    Try(nextToken()).flatten
   }
 }
