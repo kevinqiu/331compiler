@@ -8,6 +8,8 @@ import CS331.errors._;
 
 class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
+  var lastToken: Try[Token] = Failure(new Exception("placehilder"))
+
   val keywords = List(PROGRAM(), BEGIN(), END(), VAR(), FUNCTION(), PROCEDURE(), RESULT(), INTEGER(), REAL(), ARRAYTOKEN(), OF(), IF(), THEN(), ELSE(), WHILE(), DO(), NOT())
 
   val relops = List("=", "<>", "<", ">","<=",">=")
@@ -28,7 +30,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   def isDelim(c: Char) = {
-    isOperator(c) || isSeparator(c) || c.isSpaceChar
+    isOperator(c) || isSeparator(c) || c.isSpaceChar || c == CharStream.EOF
   }
 
   def matchKeywordList(l: List[Token with Keyword], s: StringBuilder): Option[Token] = {
@@ -46,6 +48,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       stream.pushBack(c)
       c
     }
+  }
+
+  def returnLast(s: StringBuilder) = {
+    val last = s.last
+    if (last != ' ') stream.pushBack(last)
   }
 
   def getChar() = {
@@ -66,29 +73,73 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
+  def constructNumber(sign: String, digits: String, decimal: String, exponent: String) = {
+    val s = if (sign == "-") -1 else 1
+    val d = Try(digits.toInt)
+    val dec: Try[Double] = Try(decimal.toDouble)
+    val e = Try(exponent.tail.toDouble)
+    d.map(i => i * s)
+      .map(i => i + dec.getOrElse(0.0))
+      .map(i => i* Math.pow(10,e.getOrElse(0))).get
+  }
+
   //not finished, working on identifier method first since simpler
   def processNumber(s: StringBuilder) : Try[Token] = {
-    val number = Try(s.toDouble)
+    val numberRegExp = """([+,-])?(\d+)(.\d+)?([Ee][-+]?\d+)?""".r
+    val number = Try(s.toString match {
+      case numberRegExp(sign, digits, decimal, exponent) => constructNumber(sign, digits, decimal, exponent)
+    })
     number.map(x => if (x.isValidInt) INTCONSTANT(x.toInt) else REALCONSTANT(x))
   }
 
-  def processOps(s: StringBuilder) : Try[Token] = {
+
+  def isAddOpLast(last: Try[Token]): Boolean = {
+    def examineLast(t: Token) = t match {
+      case RIGHTPAREN(x) => true
+      case RIGHTBRACKET(x) => true
+      case IDENTIFIER(x) => true
+      case INTCONSTANT(x) => true
+      case REALCONSTANT(x) => true
+      case _ => false
+    }
+    last.filter(examineLast).isSuccess
+  }
+
+  def processOps(s: StringBuilder, last: Try[Token]) : Try[Token] = {
     def findOpToken(s: StringBuilder, l: List[String], t: (Int, String) => Token) = {
       val matching = l.find(x => x.equalsIgnoreCase(s.toString))
       matching.map(m => t(l.indexOf(m)+1, m))
     }
 
+    def isAddOp(x: Token) = {
+      x match {
+        case ADDOP(y, "+") => isAddOpLast(last)
+        case ADDOP(y, "-") => isAddOpLast(last)
+        case _ => true
+      }
+    }
+
     val matches = List((relops, RELOP), (mulops, MULOP), (addops, ADDOP)).map({case (l, f) => findOpToken(s, l, f)}).flatten
 
-    if (matches.nonEmpty) {
+    val t = if (matches.nonEmpty) {
       Success(matches.head)
     } else {
       Failure(new Exception("Malformed symbol"))
     }
+    t.filter(isAddOp)
   }
 
-  def processSymbols(s: StringBuilder): Try[Token] = {
-    Try(matchKeywordList(symbols, s).head)
+  def processSymbols(s: StringBuilder, last: Try[Token]): Try[Token] = {
+    def isUnaryOp(x: Token) = {
+      x match {
+        case UNARYMINUS(y) => !isAddOpLast(last)
+        case UNARYPLUS(y) => !isAddOpLast(last)
+        case _ => true
+      }
+    }
+    val t = Try(matchKeywordList(symbols, s).head)
+    //check previous to see if token is unary or addop
+    t.filter(isUnaryOp)
   }
 
   def eof(s: StringBuilder): Try[Token] = {
@@ -100,22 +151,29 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
-  def process(s: StringBuilder): List[Try[Token]] = {
-    List(processIdentifier(s), processNumber(s), processOps(s), processSymbols(s), eof(s))
+  def process(s: StringBuilder, last: Try[Token]): List[Try[Token]] = {
+    /*s.toString match {
+      case r"" => 
+    }*/
+    List(processOps(s, last), processSymbols(s, last), processIdentifier(s), processNumber(s), eof(s))
   }
 
   def nextToken() : Try[Token] = {
-    val peek = peekChar()
     var current = new StringBuilder
     current += getChar()
-    var possibleToken = process (current)
+    var possibleToken = process (current, lastToken)
     var currentToken = possibleToken
-    while (possibleToken.exists(_.isSuccess)) {
+    while (possibleToken.exists(_.isSuccess) || (!isDelim(current.last) && current.last.isDigit)) {
       current += getChar()
       currentToken = possibleToken
-      possibleToken = process (current)
+      possibleToken = process (current, lastToken)
     }
-    currentToken.find(_.isSuccess).getOrElse(currentToken.head)
+    println("current "+current)
+    val findSuccess = currentToken.find(_.isSuccess)
+    if (findSuccess.nonEmpty) returnLast(current)
+    //set lastToken to be the new token for next method call
+    lastToken = findSuccess.getOrElse(currentToken.head)
+    lastToken
   }
 
   def getToken(): Try[Token] = {
