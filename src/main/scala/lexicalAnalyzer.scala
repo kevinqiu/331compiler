@@ -158,12 +158,15 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     List(processOps(s, last), processSymbols(s, last), processIdentifier(s), processNumber(s), eof(s))
   }
 
+  def processingConstant(b: StringBuilder) = {
+  }
+
   def nextToken() : Try[Token] = {
     var current = new StringBuilder
     current += getChar()
     var possibleToken = process (current, lastToken)
     var currentToken = possibleToken
-    while (possibleToken.exists(_.isSuccess) || (!isDelim(current.last) && current.last.isDigit)) {
+    while (possibleToken.exists(_.isSuccess)) {
       current += getChar()
       currentToken = possibleToken
       possibleToken = process (current, lastToken)
