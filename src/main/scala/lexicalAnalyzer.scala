@@ -8,7 +8,7 @@ import CS331.errors._;
 
 class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
-  var lastToken: Try[Token] = Failure(new Exception("placehilder"))
+  var lastToken: Try[Token] = Failure(new Exception("placeholder"))
 
   val keywords = List(PROGRAM(), BEGIN(), END(), VAR(), FUNCTION(), PROCEDURE(), RESULT(), INTEGER(), REAL(), ARRAYTOKEN(), OF(), IF(), THEN(), ELSE(), WHILE(), DO(), NOT())
 
@@ -50,16 +50,17 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
-  def returnLast(s: StringBuilder) = {
-    val last = s.last
-    if (last != ' ') stream.pushBack(last)
+  def takeChars(n: Int) = {
+    for (i <- 0 until n){
+      getChar()
+    }
   }
 
   def getChar() = {
     stream.currentChar
   }
 
-  def processIdentifier(s: StringBuilder) : Try[Token] = {
+  def processIdentifier(s: StringBuilder, last: Try[Token]) : Try[Token] = {
     if (s.head.isLetter) {
       if(s.forall{ x => x.isLetterOrDigit }) {
         val matchingKeyword: Option[Token] = matchKeywordList(keywords, s)
@@ -84,7 +85,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   //not finished, working on identifier method first since simpler
-  def processNumber(s: StringBuilder) : Try[Token] = {
+  def processNumber(s: StringBuilder, last: Try[Token]) : Try[Token] = {
     val numberRegExp = """([+,-])?(\d+)(.\d+)?([Ee][-+]?\d+)?""".r
     val number = Try(s.toString match {
       case numberRegExp(sign, digits, decimal, exponent) => constructNumber(sign, digits, decimal, exponent)
@@ -142,7 +143,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     t.filter(isUnaryOp)
   }
 
-  def eof(s: StringBuilder): Try[Token] = {
+  def eof(s: StringBuilder, last: Try[Token]): Try[Token] = {
     if (s.head == CharStream.EOF && s.length == 1) {
       end = true
       Success(ENDOFFILE())
@@ -151,31 +152,36 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
-  def process(s: StringBuilder, last: Try[Token]): List[Try[Token]] = {
-    /*s.toString match {
-      case r"" => 
-    }*/
-    List(processOps(s, last), processSymbols(s, last), processIdentifier(s), processNumber(s), eof(s))
+  def putBack(b: StringBuilder) = {
+    b.reverse.foreach(x => stream.pushBack(x))
   }
 
-  def processingConstant(b: StringBuilder) = {
+  def process(f: (StringBuilder, Try[Token]) => Try[Token]): (Try[Token], Int) = {
+    var buffer = new StringBuilder
+    buffer += getChar()
+    var currentEval = f(buffer, lastToken)
+    var possibleEval = currentEval
+    while (possibleEval.isSuccess) {
+      buffer += getChar()
+      currentEval = possibleEval
+      possibleEval = f(buffer, lastToken)
+    }
+    putBack(buffer)
+    val length = if (buffer.last == ' ') buffer.length else buffer.length-1
+    (currentEval, length)
   }
+
 
   def nextToken() : Try[Token] = {
-    var current = new StringBuilder
-    current += getChar()
-    var possibleToken = process (current, lastToken)
-    var currentToken = possibleToken
-    while (possibleToken.exists(_.isSuccess)) {
-      current += getChar()
-      currentToken = possibleToken
-      possibleToken = process (current, lastToken)
+    val results: List[(Try[Token], Int)] = List(process(eof), process(processSymbols), process(processIdentifier), process(processNumber), process(processOps))
+    val findSuccess = results.filter(_._1.isSuccess).sortBy(x => x._2)
+    if (findSuccess.nonEmpty) {
+      takeChars(findSuccess.head._2)
+      lastToken = findSuccess.head._1
+    } else {
+      takeChars(1)
+      lastToken = results.head._1
     }
-    println("current "+current)
-    val findSuccess = currentToken.find(_.isSuccess)
-    if (findSuccess.nonEmpty) returnLast(current)
-    //set lastToken to be the new token for next method call
-    lastToken = findSuccess.getOrElse(currentToken.head)
     lastToken
   }
 
