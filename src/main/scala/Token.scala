@@ -23,8 +23,8 @@ case class DO(value:String = "DO") extends Token with Keyword
 case class NOT(value:String = "NOT") extends Token with Keyword
 
 case class IDENTIFIER(value: String) extends Token
-case class INTCONSTANT(value: Int) extends Token
-case class REALCONSTANT(value: Double) extends Token
+case class INTCONSTANT(value: String) extends Token
+case class REALCONSTANT(value: String) extends Token
 
 //Symbols
 case class ADDOP(value: Int, symbol: String) extends Token
