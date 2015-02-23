@@ -110,6 +110,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   private def processNumber(s: StringBuilder) : Try[Token] = {
     val numberRegExp = new util.matching.Regex("""(\d+)(.\d+)?([Ee][-+]?\d+)?""", "sign", "digits", "decimal", "exponent")
     val number = Try(s.toString match {
+          //scala regexp working strangely, somtimes 3rd capture group is shifted to second
       case numberRegExp(digits, decimal, exponent) => constructNumber(digits, decimal, exponent)
     })
     number.map(x => {
