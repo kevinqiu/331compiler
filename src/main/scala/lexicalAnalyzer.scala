@@ -11,6 +11,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
   var lastToken: Try[Token] = Failure(new Exception("placeholder"))
 
+  //categorize Tokens
   val keywords = List(PROGRAM(), BEGIN(), END(), VAR(), FUNCTION(), PROCEDURE(), RESULT(), INTEGER(), REAL(), ARRAYTOKEN(), OF(), IF(), THEN(), ELSE(), WHILE(), DO(), NOT())
 
   val relops = List("=", "<>", "<", ">","<=",">=")
@@ -22,6 +23,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     l.find(x => x.value.equalsIgnoreCase(s.toString))
   }
 
+  //non-destructively lookahead
   private def peekChar(twoCharLookahead:Boolean = false) = {
     val c = getChar()
     if (twoCharLookahead) {
@@ -35,6 +37,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
+  //consume chars
   private def takeChars(n: Int) = {
     for (i <- 0 until n){
       getChar()
@@ -53,6 +56,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     stream.pushBack(c)
   }
 
+  //Searches input for Identifier or Keyword tokens
   private def processIdentifier(s: StringBuilder, last: Try[Token]) : Try[Token] = {
     if (s.head.isLetter) {
       if(s.forall{ x => x.isLetterOrDigit }) {
@@ -75,7 +79,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       .map(i => i* Math.pow(10,e.getOrElse(0))).get
   }
 
+  //Searches input for Numbers - similar to generic process function
+  //Is different from generic function because of the nature of parsing
+  //numbers, needs to be fixed so that generic can be used with numbers perhaps
   private def processForNum() : (Try[Token], Int) = {
+    if (peekChar() == ' ') getChar()
     def isValidNum(c: Char) = {
       c.isDigit || c == '.' || c.toLower == 'e'
     }
@@ -111,7 +119,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       else { REALCONSTANT(s.toString) }})
   }
 
-
+  //determines if the current token is an ADDOP based on last token
   private def isAddOpLast(last: Try[Token]): Boolean = {
     def examineLast(t: Token) = t match {
       case RIGHTPAREN(x) => true
@@ -124,6 +132,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     last.filter(examineLast).isSuccess
   }
 
+  //Searches input for Op Tokens
   private def processOps(s: StringBuilder, last: Try[Token]) : Try[Token] = {
     def findOpToken(s: StringBuilder, l: List[String], t: (Int, String) => Token) = {
       val matching = l.find(x => x.equalsIgnoreCase(s.toString))
@@ -148,6 +157,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     t.filter(isAddOp)
   }
 
+  //Searches Input for non-alphanumeric Tokens
   private def processSymbols(s: StringBuilder, last: Try[Token]): Try[Token] = {
     def isUnaryOp(x: Token) = {
       x match {
@@ -161,6 +171,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     t.filter(isUnaryOp)
   }
 
+  //Searches Input for EOF Marker
   private def eof(s: StringBuilder, last: Try[Token]): Try[Token] = {
     if (s.head == CharStream.EOF && s.length == 1) {
       end = true
@@ -170,6 +181,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     }
   }
 
+  //wrapper to search chars, fails when no matches are found on additional chars
   private def process(f: (StringBuilder, Try[Token]) => Try[Token]): (Try[Token], Int) = {
     var buffer = new StringBuilder
     if (peekChar() == ' ') { getChar(); buffer += getChar() } else { buffer += getChar() }
@@ -187,8 +199,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
 
   private def nextToken() : Try[Token] = {
+    //list of results sorted by length of match
     val results: List[(Try[Token], Int)] = List(process(eof), process(processSymbols), process(processIdentifier), processForNum(), process(processOps)).sortBy(x => x._2).reverse
+
     val findSuccess = results.filter(_._1.isSuccess)
+
     if (findSuccess.nonEmpty) {
       takeChars(findSuccess.head._2)
       lastToken = findSuccess.head._1
@@ -199,6 +214,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     lastToken
   }
 
+  //get next token
   def getToken(): Try[Token] = {
     Try(nextToken()).flatten
   }
