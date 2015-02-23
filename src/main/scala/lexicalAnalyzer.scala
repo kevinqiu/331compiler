@@ -73,8 +73,14 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
   private def constructNumber(digits: String, decimal: String, exponent: String) = {
     val d = Try(digits.toInt)
-    val dec: Try[Double] = Try(decimal.toDouble)
-    val e = Try(exponent.tail.toDouble)
+    //scala regular expressions are being weird so check if exponent and decimal
+    //are assigned to correct variables
+    var decPoss = Option(decimal)
+    var ePoss = Option(exponent)
+    //if exponent is assigned to decimal, resassgn to exponent
+    decPoss.map(x => if (x.head == 'e' || x.head == 'E') {ePoss = decPoss; decPoss = Option(exponent)})
+    val dec = decPoss.map(x => x.toDouble)
+    val e = ePoss.map(x => x.tail.toDouble)
     d.map(i => i + dec.getOrElse(0.0))
       .map(i => i* Math.pow(10,e.getOrElse(0))).get
   }
