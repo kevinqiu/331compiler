@@ -12,12 +12,9 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   var lastToken: Try[Token] = Failure(new Exception("placeholder"))
 
   //categorize Tokens
-  val keywords = List(PROGRAM(), BEGIN(), END(), VAR(), FUNCTION(), PROCEDURE(), RESULT(), INTEGER(), REAL(), ARRAYTOKEN(), OF(), IF(), THEN(), ELSE(), WHILE(), DO(), NOT())
+  val keywords = List(PROGRAM, BEGIN, END, VAR, FUNCTION, PROCEDURE, RESULT, INTEGER, REAL, ARRAYTOKEN, OF, IF, THEN, ELSE, WHILE, DO, NOT)
 
-  val relops = List("=", "<>", "<", ">","<=",">=")
-  val addops = List("+", "-", "OR")
-  val mulops = List("*", "/", "DIV", "MOD", "AND")
-  val symbols = List(ASSIGNOP(), COMMA(), SEMICOLON(), COLON(), RIGHTPAREN(), LEFTPAREN(), RIGHTBRACKET(), LEFTBRACKET(), UNARYMINUS(), UNARYPLUS(), DOUBLEDOT(), ENDMARKER())
+  val symbols = List(ASSIGNOP, COMMA, SEMICOLON, COLON, RIGHTPAREN, LEFTPAREN, RIGHTBRACKET, LEFTBRACKET, UNARYMINUS, UNARYPLUS, DOUBLEDOT, ENDMARKER)
 
   private def matchKeywordList(l: List[Token with Keyword], s: StringBuilder): Option[Token] = {
     l.find(x => x.value.equalsIgnoreCase(s.toString))
@@ -129,11 +126,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   //determines if the current token is an ADDOP based on last token
   private def isAddOpLast(last: Try[Token]): Boolean = {
     def examineLast(t: Token) = t match {
-      case RIGHTPAREN(x) => true
-      case RIGHTBRACKET(x) => true
-      case IDENTIFIER(x) => true
-      case INTCONSTANT(x) => true
-      case REALCONSTANT(x) => true
+      case RIGHTPAREN => true
+      case RIGHTBRACKET => true
+      case IDENTIFIER(y) => true
+      case INTCONSTANT(y) => true
+      case REALCONSTANT(y) => true
       case _ => false
     }
     last.filter(examineLast).isSuccess
@@ -154,7 +151,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       }
     }
 
-    val matches = List((relops, RELOP), (mulops, MULOP), (addops, ADDOP)).map({case (l, f) => findOpToken(s, l, f)}).flatten
+    val matches = List((Ops.relops, RELOP), (Ops.mulops, MULOP), (Ops.addops, ADDOP)).map({case (l, f) => findOpToken(s, l, f)}).flatten
 
     val t = if (matches.nonEmpty) {
       Success(matches.head)
@@ -168,8 +165,8 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   private def processSymbols(s: StringBuilder, last: Try[Token]): Try[Token] = {
     def isUnaryOp(x: Token) = {
       x match {
-        case UNARYMINUS(y) => !isAddOpLast(last)
-        case UNARYPLUS(y) => !isAddOpLast(last)
+        case UNARYMINUS => !isAddOpLast(last)
+        case UNARYPLUS => !isAddOpLast(last)
         case _ => true
       }
     }
@@ -182,7 +179,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   private def eof(s: StringBuilder, last: Try[Token]): Try[Token] = {
     if (s.head == CharStream.EOF && s.length == 1) {
       end = true
-      Success(ENDOFFILE())
+      Success(ENDOFFILE)
     } else {
       Failure(new Exception("Malformed symbol: "+ s.toString))
     }

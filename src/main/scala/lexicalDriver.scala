@@ -4,7 +4,7 @@ import collection.mutable.ListBuffer
 import scala.util.{Try, Success, Failure}
 import java.io._
 
-object LexicalDriver {
+object LexicalDriver {/*
   def main(args: Array[String]) {
     val file = "/home/kevin/git/331compiler/lextest.dat"
     val writeFile = new File("/home/kevin/git/331compiler/output")
@@ -16,8 +16,8 @@ object LexicalDriver {
       val t = la.getToken()
       tokens += t
       println(t)
-      bw.write(t.toString)
+      bw.write(t.toString+"\n")
     }
     bw.close()
-  }
+  }*/
 }
