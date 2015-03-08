@@ -54,7 +54,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   //Searches input for Identifier or Keyword tokens
-  private def processIdentifier(s: StringBuilder, last: Try[Token]) : Try[Token] = {
+  private def processIdentifier(s: StringBuilder) : Try[Token] = {
     if (s.head.isLetter) {
       if(s.forall{ x => x.isLetterOrDigit }) {
         val matchingKeyword: Option[Token] = matchKeywordList(keywords, s)
@@ -124,7 +124,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   //determines if the current token is an ADDOP based on last token
-  private def isAddOpLast(last: Try[Token]): Boolean = {
+  private def isAddOpLast(): Boolean = {
     def examineLast(t: Token) = t match {
       case RIGHTPAREN => true
       case RIGHTBRACKET => true
@@ -133,20 +133,21 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       case REALCONSTANT(y) => true
       case _ => false
     }
-    last.filter(examineLast).isSuccess
+    lastToken.filter(examineLast).isSuccess
   }
 
   //Searches input for Op Tokens
-  private def processOps(s: StringBuilder, last: Try[Token]) : Try[Token] = {
+  private def processOps(s: StringBuilder) : Try[Token] = {
+
     def findOpToken(s: StringBuilder, l: List[String], t: (Int, String) => Token) = {
-      val matching = l.find(x => x.equalsIgnoreCase(s.toString))
-      matching.map(m => t(l.indexOf(m)+1, m))
+      val matching = l.find(x => x == s.toString.toLowerCase)
+      matching.map(m => t(l.indexOf(m) + 1, m))
     }
 
     def isAddOp(x: Token) = {
       x match {
-        case ADDOP(y, "+") => isAddOpLast(last)
-        case ADDOP(y, "-") => isAddOpLast(last)
+        case ADDOP(y, "+") => isAddOpLast()
+        case ADDOP(y, "-") => isAddOpLast()
         case _ => true
       }
     }
@@ -156,17 +157,17 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     val t = if (matches.nonEmpty) {
       Success(matches.head)
     } else {
-      Failure(new Exception("Malformed symbol: "+s.toString))
+      Failure(new Exception("Malformed Op: "+s.toString))
     }
     t.filter(isAddOp)
   }
 
   //Searches Input for non-alphanumeric Tokens
-  private def processSymbols(s: StringBuilder, last: Try[Token]): Try[Token] = {
+  private def processSymbols(s: StringBuilder): Try[Token] = {
     def isUnaryOp(x: Token) = {
       x match {
-        case UNARYMINUS => !isAddOpLast(last)
-        case UNARYPLUS => !isAddOpLast(last)
+        case UNARYMINUS => !isAddOpLast()
+        case UNARYPLUS => !isAddOpLast()
         case _ => true
       }
     }
@@ -176,7 +177,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   //Searches Input for EOF Marker
-  private def eof(s: StringBuilder, last: Try[Token]): Try[Token] = {
+  private def eof(s: StringBuilder): Try[Token] = {
     if (s.head == CharStream.EOF && s.length == 1) {
       end = true
       Success(ENDOFFILE)
@@ -186,15 +187,15 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   }
 
   //wrapper to search chars, fails when no matches are found on additional chars
-  private def process(f: (StringBuilder, Try[Token]) => Try[Token]): (Try[Token], Int) = {
+  private def process(f: (StringBuilder) => Try[Token]): (Try[Token], Int) = {
     var buffer = new StringBuilder
     if (peekChar() == ' ') { getChar(); buffer += getChar() } else { buffer += getChar() }
-    var currentEval = f(buffer, lastToken)
+    var currentEval = f(buffer)
     var possibleEval = currentEval
     while (possibleEval.isSuccess) {
       buffer += getChar()
       currentEval = possibleEval
-      possibleEval = f(buffer, lastToken)
+      possibleEval = f(buffer)
     }
     pushBackString(buffer)
     val length = buffer.length-1
@@ -204,13 +205,14 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
   private def nextToken() : Try[Token] = {
     //list of results sorted by length of match
-    val results: List[(Try[Token], Int)] = List(process(eof), process(processSymbols), process(processIdentifier), processForNum(), process(processOps)).sortBy(x => x._2).reverse
-
+    //remember that order is important
+    val results: List[(Try[Token], Int)] = List(process(processIdentifier), process(eof), process(processSymbols), processForNum(), process(processOps)).sortBy(x => x._2).reverse
     val findSuccess = results.filter(_._1.isSuccess)
 
     if (findSuccess.nonEmpty) {
-      takeChars(findSuccess.head._2)
-      lastToken = findSuccess.head._1
+      val tokenInt = findSuccess.head
+      takeChars(tokenInt._2)
+      lastToken = tokenInt._1
     } else {
       takeChars(results.head._2)
       lastToken = results.head._1

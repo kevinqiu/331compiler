@@ -1,6 +1,7 @@
 package parser
+import lex.GrammarSymbol
 
-abstract class SemanticAction(val value:Int)
+abstract class SemanticAction(val value:Int) extends GrammarSymbol
 
 case object Action1 extends SemanticAction(1)
 case object Action2 extends SemanticAction(2)

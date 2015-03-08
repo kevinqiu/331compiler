@@ -1,36 +1,68 @@
 package parser
 
 import lex._
-import scala.collection.mutable.Stack
+import collection.mutable.Stack
 
 class Parser(lexicalAnalyzer: LexicalAnalyzer) {
-  var stack = new Stack()
-  val parseTable = readParseTable("/home/kevin/Downloads/parsetable-2const.dat")
+  var stack: Stack[GrammarSymbol] = new Stack() ++ List(Goal, ENDOFFILE)
+  //lookup using (terminal index)(nonterminal index)
+  val parseTable = readParseTable("/home/kevin/git/331compiler/parsetable-2const.dat")
+  var current: Token = lexicalAnalyzer.getToken().get
 
   def parse() = {
+    while(stack.length > 0) {
+      println("stack: " +stack + " current: "+current)
+      stack.head match {
+        case t: Token => if (current == t) { println("terminal matched"); stack.pop; readInput() }
+        case nt: NonTerminal => parseTableLookUp(current, nt)
+        case a: SemanticAction => { stack.pop; println("SA matched") }
+      }
+    }
+    println("parse finished")
+  }
 
+  def readInput() = {
+    current = lexicalAnalyzer.getToken().get
+  }
+
+  def parseTableLookUp(current: Token, top: NonTerminal) = {
+    if (current.index == 35) println("hello")
+    val entry = parseTable(current.index)(top.index).toInt
+    entry match {
+      case 999 => println("parse error")
+      case _ if entry < 0 => stack.pop
+      case _ => { stack.pop; pushProduction(entry) }
+    }
+  }
+
+  def pushProduction(index: Int) = {
+    println("pushing " + RHSTable.rules(index))
+    RHSTable.rules(index).reverse.foreach(
+      elem => stack.push(elem)
+     )
+   //stack.pushAll(RHSTable.rules(index))
   }
 
   def readParseTable(location: String) = {
     io.Source.fromFile(location).getLines.map(l => {
-      l.split(" ")
+      l.split("\\s+")
     }).filter(_.length > 1).toArray
   }
 
 }
 
 object RHSTable {
-  val rules = Vector(
+  val rules: Vector[List[GrammarSymbol]] = Vector(
     //production 0
     List(),
     //production 1
-    List(PROGRAM, IDENTIFIER(""), LEFTPAREN, Identifier_list,
+    List(PROGRAM, IDENTIFIER(), LEFTPAREN, Identifier_list,
       RIGHTPAREN, Action9, SEMICOLON, Declarations, Sub_declarations,
       Action56, Compound_statement, Action55),
     //production 2
-    List(IDENTIFIER,  Action13,  Identifier_list_tail),
+    List(IDENTIFIER(),  Action13,  Identifier_list_tail),
     //production 3
-    List(COMMA, IDENTIFIER, Action13, Identifier_list_tail),
+    List(COMMA, IDENTIFIER(), Action13, Identifier_list_tail),
     //production 4
     List( ),
     //production 5
@@ -54,8 +86,8 @@ object RHSTable {
     //production 13
     List( REAL,  Action4 ),
     //production 14
-    List( Action6,  ARRAYTOKEN,  LEFTBRACKET,  INTCONSTANT,
-      Action7,  DOUBLEDOT,  INTCONSTANT, Action7,
+    List( Action6,  ARRAYTOKEN,  LEFTBRACKET,  INTCONSTANT(),
+      Action7,  DOUBLEDOT,  INTCONSTANT(), Action7,
       RIGHTBRACKET,  OF,  Standard_type ),
     //production 15
     List( Subprogram_declaration,  Sub_declarations ),
@@ -65,11 +97,11 @@ object RHSTable {
     List( Action1,  Subprogram_head,  Declarations,
       Action5,  Compound_statement,  Action11 ),
     //production 18
-    List( FUNCTION,  IDENTIFIER,  Action15,  Arguments,
+    List( FUNCTION,  IDENTIFIER(),  Action15,  Arguments,
       COLON,  RESULT,  Standard_type, SEMICOLON,
       Action16 ),
     //production 19
-    List( PROCEDURE,  IDENTIFIER,  Action17,  Arguments,
+    List( PROCEDURE,  IDENTIFIER(),  Action17,  Arguments,
       SEMICOLON ),
     //production 20
     List( LEFTPAREN,  Action19,  Parameter_list,  RIGHTPAREN,
@@ -105,7 +137,7 @@ object RHSTable {
     //production 33
     List( Action29 ),
     //production 34
-    List( IDENTIFIER,  Action30,  Es_tail ),
+    List( IDENTIFIER(),  Action30,  Es_tail ),
     //production 35
     List( Compound_statement ),
     //production 36
@@ -132,7 +164,7 @@ object RHSTable {
     //production 45
     List( Simple_expression,  Expression_tail ),
     //production 46
-    List( RELOP,  Action38,  Simple_expression,  Action39 ),
+    List( RELOP(),  Action38,  Simple_expression,  Action39 ),
     //production 47
     List( ),
     //production 48
@@ -141,19 +173,19 @@ object RHSTable {
     List( Sign,  Action40,  Term,  Action41,
       Simple_expression_tail ),
     //production 50
-    List( ADDOP,  Action42,  Term,  Action43,
+    List( ADDOP(),  Action42,  Term,  Action43,
       Simple_expression_tail ),
     //production 51
     List( ),
     //production 52
     List( Factor,  Term_tail ),
     //production 53
-    List( MULOP,  Action44,  Factor,  Action45,
+    List( MULOP(),  Action44,  Factor,  Action45,
       Term_tail ),
     //production 54
     List( ),
     //production 55
-    List( IDENTIFIER,  Action46,  Factor_tail ),
+    List( IDENTIFIER(),  Action46,  Factor_tail ),
     //production 56
     List( Constant,  Action46 ),
     //production 57
@@ -175,8 +207,8 @@ object RHSTable {
     //production 65
     List( Program,  ENDMARKER ),
     //production 66
-    List( INTCONSTANT ),
+    List( INTCONSTANT() ),
     //production 67
-    List( REALCONSTANT )
+    List( REALCONSTANT() )
   )
 }

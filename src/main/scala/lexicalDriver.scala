@@ -6,7 +6,7 @@ import java.io._
 
 object LexicalDriver {
   def main(args: Array[String]) {
-    val file = "/home/kevin/git/331compiler/lextest.dat"
+    val file = "/home/kevin/git/331compiler/parsetest.dat"
     val writeFile = new File("/home/kevin/git/331compiler/output")
     val bw = new BufferedWriter(new FileWriter(writeFile))
     var stream = new CharStream(file)
@@ -20,4 +20,12 @@ object LexicalDriver {
     }
     bw.close()
   }
+/*
+  def main(args: Array[String]) = {
+    val file = "/home/kevin/git/331compiler/parsetest.dat"
+    var stream = new CharStream(file)
+    val la = new LexicalAnalyzer(stream)
+    val parser = new Parser(la)
+    parser.parse()
+  }*/
 }

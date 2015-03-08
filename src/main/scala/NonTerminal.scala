@@ -1,6 +1,7 @@
 package parser
+import lex.GrammarSymbol
 
-abstract class NonTerminal(val value:Int)
+abstract class NonTerminal(val index:Int) extends GrammarSymbol
 
 case object Program extends NonTerminal(0)
 case object Identifier_list extends NonTerminal(1)
