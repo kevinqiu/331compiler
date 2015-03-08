@@ -16,8 +16,18 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
 
   val symbols = List(ASSIGNOP, COMMA, SEMICOLON, COLON, RIGHTPAREN, LEFTPAREN, RIGHTBRACKET, LEFTBRACKET, UNARYMINUS, UNARYPLUS, DOUBLEDOT, ENDMARKER)
 
+  val opSymbol = List(RELOP(1, "="), RELOP(2, "<>"), RELOP(3, "<"), RELOP(4, ">"), RELOP(5,"<="),RELOP(6, ">="), ADDOP(1, "+"), ADDOP(2, "-"), MULOP(1, "*"), MULOP(2, "/"))
+
+  val opString = List(MULOP(3, "div"), MULOP(4, "mod"), MULOP(5, "and"),ADDOP(3, "or"))
+
+
+  //merge both of these functions and combine Op trait with Keyword
   private def matchKeywordList(l: List[Token with Keyword], s: StringBuilder): Option[Token] = {
     l.find(x => x.value.equalsIgnoreCase(s.toString))
+  }
+
+  private def matchOp(l: List[Token with Op], s: StringBuilder): Option[Token] = {
+    l.find(x => x.symbol.equalsIgnoreCase(s.toString))
   }
 
   //non-destructively lookahead
@@ -53,12 +63,13 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     stream.pushBack(c)
   }
 
-  //Searches input for Identifier or Keyword tokens
+  //Searches input for tokens that are strings
   private def processIdentifier(s: StringBuilder) : Try[Token] = {
     if (s.head.isLetter) {
       if(s.forall{ x => x.isLetterOrDigit }) {
-        val matchingKeyword: Option[Token] = matchKeywordList(keywords, s)
-        Success(matchingKeyword.getOrElse(IDENTIFIER(s.toString)))
+
+        val matches = List(matchOp(opString, s), matchKeywordList(keywords, s)).flatten
+        Success(matches.headOption.getOrElse(IDENTIFIER(s.toString)))
       } else {
         Failure(new Exception("Idenifier has non alphanumeric characters"))
       }
@@ -139,11 +150,6 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   //Searches input for Op Tokens
   private def processOps(s: StringBuilder) : Try[Token] = {
 
-    def findOpToken(s: StringBuilder, l: List[String], t: (Int, String) => Token) = {
-      val matching = l.find(x => x == s.toString.toLowerCase)
-      matching.map(m => t(l.indexOf(m) + 1, m))
-    }
-
     def isAddOp(x: Token) = {
       x match {
         case ADDOP(y, "+") => isAddOpLast()
@@ -152,10 +158,10 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       }
     }
 
-    val matches = List((Ops.relops, RELOP), (Ops.mulops, MULOP), (Ops.addops, ADDOP)).map({case (l, f) => findOpToken(s, l, f)}).flatten
+    val opMatch = matchOp(opSymbol, s)
 
-    val t = if (matches.nonEmpty) {
-      Success(matches.head)
+    val t = if (opMatch.nonEmpty) {
+      Success(opMatch.head)
     } else {
       Failure(new Exception("Malformed Op: "+s.toString))
     }
@@ -208,7 +214,6 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     //remember that order is important
     val results: List[(Try[Token], Int)] = List(process(processIdentifier), process(eof), process(processSymbols), processForNum(), process(processOps)).sortBy(x => x._2).reverse
     val findSuccess = results.filter(_._1.isSuccess)
-
     if (findSuccess.nonEmpty) {
       val tokenInt = findSuccess.head
       takeChars(tokenInt._2)
@@ -224,4 +229,5 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   def getToken(): Try[Token] = {
     Try(nextToken()).flatten
   }
+
 }

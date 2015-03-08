@@ -5,7 +5,8 @@ trait GrammarSymbol
 abstract class Token(val index: Int) extends GrammarSymbol
 abstract class Keyword(val value: String, index: Int) extends Token(index)
 
-abstract class Symbol(val value: String, index: Int) extends Token(index)
+trait Op { val value: Int; val symbol: String }
+
 //Reserved Keywords
 case object PROGRAM extends Keyword("PROGRAM", 0)
 case object BEGIN extends Keyword("BEGIN", 1)
@@ -44,32 +45,26 @@ case class REALCONSTANT(value: String = "") extends Token(19) {
   }
 }
 
+
+
 //Symbols
-case class ADDOP(value: Int = 0, symbol: String = "") extends Token(22) {
+case class ADDOP(value: Int = 0, symbol: String = "") extends Token(22) with Op {
   override def equals(o: Any) = o match {
     case o: ADDOP => true
     case _ => false
   }
 }
-case class RELOP(value: Int = 0, symbol: String = "") extends Token(20) {
+case class RELOP(value: Int = 0, symbol: String = "") extends Token(20) with Op {
   override def equals(o: Any) = o match {
     case o: RELOP => true
     case _ => false
   }
 }
-case class MULOP(value: Int = 0, symbol: String = "") extends Token(21) {
+case class MULOP(value: Int = 0, symbol: String = "") extends Token(21) with Op {
   override def equals(o: Any) = o match {
     case o: MULOP => true
     case _ => false
   }
-}
-
-object Ops {
-  val relops = List("=", "<>", "<", ">","<=",">=")
-  val addops = List("+", "-")
-  val mulops = List("*", "/")
-  val mulopString = List("div", "mod", "and")
-  val addopString = List("or")
 }
 
 case object ASSIGNOP extends Keyword(":=", 23)
