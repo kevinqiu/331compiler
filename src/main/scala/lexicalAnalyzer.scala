@@ -4,6 +4,7 @@ import collection.mutable.Stack
 import collection.mutable.ListBuffer
 import scalaz._
 import scala.util.{Try, Success, Failure}
+import compiler._
 import CS331.errors._;
 
 //end indicates when ENDMARKER has appeared and nextToken results in no new values

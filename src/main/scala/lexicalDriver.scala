@@ -22,7 +22,7 @@ object LexicalDriver {
     bw.close()
   }*/
 
-  def main(args: Array[String]) = {
+  def main(args: Array[String]) {
     val file = "/home/kevin/git/331compiler/parsetest.dat"
     var stream = new CharStream(file)
     val la = new LexicalAnalyzer(stream)

@@ -1,24 +1,36 @@
 package parser
 
 import lex._
+import compiler._
 import collection.mutable.Stack
+import util.{Try, Success, Failure}
 
 class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   var stack: Stack[GrammarSymbol] = new Stack() ++ List(Goal, ENDOFFILE)
   //lookup using (terminal index)(nonterminal index)
-  val parseTable = readParseTable("/home/kevin/git/331compiler/parsetable-2const.dat")
+  val parseTable: Array[Array[Int]] = readParseTable("/home/kevin/git/331compiler/parsetable-2const.dat")
   var current: Token = lexicalAnalyzer.getToken().get
 
+  //() -> Try[String]
   def parse() = {
     while(stack.length > 0) {
       println("stack: " +stack + " current: "+current)
       stack.head match {
-        case t: Token => if (current == t) { println("terminal matched"); stack.pop; readInput() }
+        case t: Token => if (current == t) { println("terminal matched"); stack.pop; readInput() } else { terminalMatchError() }
         case nt: NonTerminal => parseTableLookUp(current, nt)
-        case a: SemanticAction => { stack.pop; println("SA matched") }
+        case a: SemanticAction => { stack.pop; println("SA matched"); Success("SA Matched") }
       }
     }
-    println("parse finished")
+    println("Parse Finished")
+    Success("Parse Finished")
+  }
+
+  def terminalMatchError() = {
+    val terminal = stack.pop
+    //line currently not provided, will be added in future
+    val message = terminal + " missing on line " + ", term was inserted automatically"
+    println(message)
+    Failure(new Missing_Term(message))
   }
 
   def readInput() = {
@@ -26,26 +38,44 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   }
 
   def parseTableLookUp(current: Token, top: NonTerminal) = {
-    if (current.index == 35) println("hello")
-    val entry = parseTable(current.index)(top.index).toInt
+    val entry = parseTable(current.index)(top.index)
     entry match {
-      case 999 => println("parse error")
-      case _ if entry < 0 => stack.pop
-      case _ => { stack.pop; pushProduction(entry) }
+      case 999 => { nonTerminalMatchError(top) }
+      case _ if entry < 0 => { stack.pop; Success("NT Matched") }
+      case _ => { stack.pop; pushProduction(entry); Success("NT Matched") }
     }
   }
 
-  def pushProduction(index: Int) = {
-    println("pushing " + RHSTable.rules(index))
-    RHSTable.rules(index).reverse.foreach(
-      elem => stack.push(elem)
-     )
-   //stack.pushAll(RHSTable.rules(index))
+  def nonTerminalMatchError(top: NonTerminal) = {
+    println("error encountered")
+    val firstOfTop = findFirstSet(top)
+    val followOfTop = findFollowSet(top)
+    val syncSet = firstOfTop ++ followOfTop
   }
 
-  def readParseTable(location: String) = {
-    io.Source.fromFile(location).getLines.map(l => {
-      l.split("\\s+")
+  def findFirstSet(nt: NonTerminal) = {
+    //Only finds first of production, not first set of production, rewrite later
+    RHSTable.rules(nt.index).headOption
+  }
+
+  def findFollowSet(nt: NonTerminal) = {
+    //Finds follow of NT, not follow set
+    RHSTable.rules.map(production => {
+      val index = production.indexOf(nt)
+      if (index > -1) Some(production(index + 1)) else None
+    }).flatten
+  }
+
+  //Int -> () : Side effect, pushes RHS onto Parse stack
+  def pushProduction(index: Int) = {
+   stack.pushAll(RHSTable.rules(index).reverse)
+  }
+
+  //Reads parse table at location
+  def readParseTable(location: String): Array[Array[Int]] = {
+    io.Source.fromFile(location).getLines.map(line => {
+      line.split("\\s+").map(_.toInt)
+      //ignore empty lines
     }).filter(_.length > 1).toArray
   }
 

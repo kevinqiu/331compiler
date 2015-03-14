@@ -1,4 +1,4 @@
-package lex
+package compiler
 
 trait GrammarSymbol
 

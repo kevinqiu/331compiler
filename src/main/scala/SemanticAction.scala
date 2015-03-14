@@ -1,5 +1,4 @@
-package parser
-import lex.GrammarSymbol
+package compiler
 
 abstract class SemanticAction(val value:Int) extends GrammarSymbol
 

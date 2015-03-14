@@ -1,5 +1,4 @@
-package parser
-import lex.GrammarSymbol
+package compiler
 
 abstract class NonTerminal(val index:Int) extends GrammarSymbol
 
