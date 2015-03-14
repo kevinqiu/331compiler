@@ -4,32 +4,47 @@ import lex._
 import compiler._
 import collection.mutable.Stack
 import util.{Try, Success, Failure}
+import collection.mutable.ListBuffer
 
 class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   var stack: Stack[GrammarSymbol] = new Stack() ++ List(Goal, ENDOFFILE)
   //lookup using (terminal index)(nonterminal index)
-  val parseTable: Array[Array[Int]] = readParseTable("/home/kevin/git/331compiler/parsetable-2const.dat")
+  val parseTable: Array[Array[Int]] = readParseTable("parsetable-2const.dat")
   var current: Token = lexicalAnalyzer.getToken().get
 
-  //() -> Try[String]
+  //() -> List[Try[String]]
   def parse() = {
+    var results : ListBuffer[Try[String]] = new ListBuffer()
+
     while(stack.length > 0) {
-      println("stack: " +stack + " current: "+current)
-      stack.head match {
-        case t: Token => if (current == t) { println("terminal matched"); stack.pop; readInput() } else { terminalMatchError() }
+      val result: Try[String] = stack.head match {
+        case t: Token => terminalMatch(t)
         case nt: NonTerminal => parseTableLookUp(current, nt)
-        case a: SemanticAction => { stack.pop; println("SA matched"); Success("SA Matched") }
+        case a: SemanticAction => {
+          stack.pop
+          Success("SA Matched")
+        }
       }
+
+      results += result
     }
-    println("Parse Finished")
-    Success("Parse Finished")
+    results.toList
+  }
+
+  def terminalMatch(t: Token) = {
+    if (current == t) {
+      stack.pop
+      readInput()
+      Success("Terminal Matched")
+    } else {
+      terminalMatchError()
+    }
   }
 
   def terminalMatchError() = {
     val terminal = stack.pop
     //line currently not provided, will be added in future
     val message = terminal + " missing on line " + ", term was inserted automatically"
-    println(message)
     Failure(new Missing_Term(message))
   }
 
@@ -40,30 +55,28 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   def parseTableLookUp(current: Token, top: NonTerminal) = {
     val entry = parseTable(current.index)(top.index)
     entry match {
-      case 999 => { nonTerminalMatchError(top) }
-      case _ if entry < 0 => { stack.pop; Success("NT Matched") }
-      case _ => { stack.pop; pushProduction(entry); Success("NT Matched") }
+      case 999 => nonTerminalMatchError()
+      case _ if entry < 0 => {
+        stack.pop
+        Success("NT Matched") }
+      case _ => {
+        stack.pop
+        pushProduction(entry)
+        Success("NT Matched") }
     }
   }
 
-  def nonTerminalMatchError(top: NonTerminal) = {
-    println("error encountered")
-    val firstOfTop = findFirstSet(top)
-    val followOfTop = findFollowSet(top)
-    val syncSet = firstOfTop ++ followOfTop
-  }
-
-  def findFirstSet(nt: NonTerminal) = {
-    //Only finds first of production, not first set of production, rewrite later
-    RHSTable.rules(nt.index).headOption
-  }
-
-  def findFollowSet(nt: NonTerminal) = {
-    //Finds follow of NT, not follow set
-    RHSTable.rules.map(production => {
-      val index = production.indexOf(nt)
-      if (index > -1) Some(production(index + 1)) else None
-    }).flatten
+  def nonTerminalMatchError() = {
+    val nonMatching = current
+    val syncSet = List(SEMICOLON, END, RIGHTPAREN)
+    while (syncSet.contains(current)) {
+      readInput()
+    }
+    while (stack.head != current) {
+      stack.pop()
+    }
+    val message = "Syntax Error on line " + "at " + nonMatching + " evaluation skipped to next statement"
+    Failure(new Syntax_Error("Syntax Error on line " + "at " + nonMatching + " evaluation skipped to next statement"))
   }
 
   //Int -> () : Side effect, pushes RHS onto Parse stack
@@ -73,10 +86,10 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
 
   //Reads parse table at location
   def readParseTable(location: String): Array[Array[Int]] = {
-    io.Source.fromFile(location).getLines.map(line => {
-      line.split("\\s+").map(_.toInt)
-      //ignore empty lines
-    }).filter(_.length > 1).toArray
+    io.Source.fromFile(location).getLines
+      .map(_.split("\\s+"))
+      .filter(_.length > 1)
+      .map(_.map(_.toInt)).toArray
   }
 
 }
