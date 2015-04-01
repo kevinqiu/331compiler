@@ -6,8 +6,7 @@ import java.io._
 import compiler._
 
 object LexicalDriver {
-  def run() = {
-    val file = "/home/kevin/git/331compiler/test.dat"
+  def run(file: String = "/home/kevin/git/331compiler/lextest.dat") = {
     val writeFile = new File("/home/kevin/git/331compiler/output")
     val bw = new BufferedWriter(new FileWriter(writeFile))
     var stream = new CharStream(file)
