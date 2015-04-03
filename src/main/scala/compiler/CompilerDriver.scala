@@ -7,7 +7,7 @@ object Compiler {
     if (args.length == 0) {
       println("No input file specified")
     } else {
-      ParseDriver.run(args(0).toString)
+      LexicalDriver.run(args(0).toString)
     }
   }
 }
