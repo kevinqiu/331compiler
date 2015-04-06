@@ -2,7 +2,7 @@ package compiler
 
 abstract class NonTerminal(val index:Int) extends GrammarSymbol
 
-case object Program extends NonTerminal(0)
+case object ProgramNT extends NonTerminal(0)
 case object Identifier_list extends NonTerminal(1)
 case object Declarations extends NonTerminal(2)
 case object Sub_declarations extends NonTerminal(3)

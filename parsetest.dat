@@ -5,7 +5,7 @@ Var
 
 function gcd (a, b: integer) : result real;
 begin
-   if b= 0 then gcd := a
+   if b= 0  gcd := a
    else gcd := gcd(b,a mod b)
 end
 

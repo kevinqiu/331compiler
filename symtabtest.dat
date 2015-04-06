@@ -1,0 +1,28 @@
+a
+A
+aaA
+baaaaaa
+ggggggggggggggggggggggggggggggggg
+here are a few identifiers for the symbol table test that should
+provide some idea of what is happening
+here are a few more identifiers for the symbol table test
+a
+A
+aaA
+baaaaaa
+gggggggggggggggggggggggg
+
+Numbers go in the constant table.
+
+12345
+67890
+12345 234.5E7
+
+If a keyword tabel is implemented then 
+keywords like begin, while, then, if, not, and, etc. won't be in the global table.
+
+The dump at the end will show us
+what has been put where.
+
+
+

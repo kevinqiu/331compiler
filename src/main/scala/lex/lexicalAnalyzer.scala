@@ -49,10 +49,6 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     peek2
   }
 
-  def pushBackString(b: StringBuilder) = {
-    b.reverse.foreach(x => pushBackChar(x))
-  }
-
   def pushBackChar(c: Char) = {
     stream.pushBack(c)
   }
@@ -67,7 +63,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     if (poss.nonEmpty) {
       Success(poss.head)
     } else {
-      Success(IDENTIFIER(s.toString))
+      val id = s.toString
+      if (id.length > 32) {
+        Failure(Identifier_Too_Long(id + " exceedes maximum length for identifier names"))
+      }
+      else Success(IDENTIFIER(s.toString))
     }
   }
 
@@ -218,6 +218,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
       c = getChar()
     }
     var s = new StringBuilder(c.toString)
+    var changed = false
     if (c.isLetter) {
       lastToken = readIdentifier(s)
     } else if (c.isDigit) {
@@ -231,6 +232,10 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
   //get next token
   def getToken(): Try[Token] = {
     Try(nextToken()).flatten
+  }
+
+  def getLineNumber(): Int = {
+    stream.lineNumber()
   }
 
 }

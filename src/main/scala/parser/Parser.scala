@@ -44,7 +44,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   def terminalMatchError() = {
     val terminal = stack.pop
     //line currently not provided, will be added in future
-    val message = terminal + " missing on line " + ", term was inserted automatically"
+    val message = terminal + " missing on line " + lexicalAnalyzer.getLineNumber()  + ", term was inserted automatically"
     Failure(new Missing_Term(message))
   }
 
@@ -68,15 +68,9 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
 
   def nonTerminalMatchError() = {
     val nonMatching = current
-    val syncSet = List(SEMICOLON, END, RIGHTPAREN)
-    while (syncSet.contains(current)) {
-      readInput()
-    }
-    while (stack.head != current) {
-      stack.pop()
-    }
-    val message = "Syntax Error on line " + "at " + nonMatching + " evaluation skipped to next statement"
-    Failure(new Syntax_Error("Syntax Error on line " + "at " + nonMatching + " evaluation skipped to next statement"))
+    val message = "Syntax Error on line " + lexicalAnalyzer.getLineNumber() + " at " + nonMatching + ", evaluation halted"
+    stack.clear
+    Failure(new Syntax_Error(message))
   }
 
   //Int -> () : Side effect, pushes RHS onto Parse stack
@@ -248,7 +242,7 @@ object RHSTable {
     //production 64
     List( UNARYMINUS ),
     //production 65
-    List( Program,  ENDMARKER ),
+    List( ProgramNT,  ENDMARKER ),
     //production 66
     List( INTCONSTANT() ),
     //production 67
