@@ -54,8 +54,11 @@ object SymbolTableDriver {
         case t: IDENTIFIER => globalTable.insert(VariableEntry(t.value, "IDENTIFIER"))
         case _ =>
       }))
+    println("keywordTable: ")
     keywordTable.dumpTable()
+    println("globalTable: ")
     globalTable.dumpTable()
+    println("constantTable: ")
     constantTable.dumpTable()
   }
 }

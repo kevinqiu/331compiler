@@ -8,16 +8,17 @@ import compiler._
 import CS331.errors._;
 
 //end indicates when ENDMARKER has appeared and nextToken results in no new values
-class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) extends Iterator[Try[Token]] {
+class LexicalAnalyzer(var stream: CharStream) extends Iterator[Try[Token]] {
 
   var lastToken: Try[Token] = Failure(new Exception("placeholder"))
+  var end: Boolean = false
 
   //categorize Tokens
   val keywords = List(PROGRAM, BEGIN, END, VAR, FUNCTION, PROCEDURE, RESULT, INTEGER, REAL, ARRAYTOKEN, OF, IF, THEN, ELSE, WHILE, DO, NOT)
 
   val opString = List(MULOP(3, "div"), MULOP(4, "mod"), MULOP(5, "and"),ADDOP(3, "or"))
 
-    val simpleOpSymbol = List(RELOP(2, "<>"), RELOP(3, "<"), RELOP(4, ">"), RELOP(5,"<="),RELOP(6, ">="))
+  val simpleOpSymbol = List(RELOP(2, "<>"), RELOP(3, "<"), RELOP(4, ">"), RELOP(5,"<="),RELOP(6, ">="))
 
   val simpleSymbols = List(COMMA, SEMICOLON, RIGHTPAREN, LEFTPAREN, RIGHTBRACKET, LEFTBRACKET, ASSIGNOP)
 
@@ -64,7 +65,7 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) extends 
       Success(poss.head)
     } else {
       val id = s.toString
-      if (id.length > 32) {
+      if (id.length > 64) {
         Failure(Identifier_Too_Long(id + " exceedes maximum length for identifier names"))
       }
       else Success(IDENTIFIER(s.toString))

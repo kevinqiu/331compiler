@@ -19,7 +19,7 @@ Numbers go in the constant table.
 12345 234.5E7
 
 If a keyword tabel is implemented then 
-keywords like begin, while, then, if, not, and, etc. won't be in the global table.
+keywords like begin, while, then, if, not, and, etc. wont be in the global table.
 
 The dump at the end will show us
 what has been put where.
