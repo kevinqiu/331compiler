@@ -45,14 +45,15 @@ object SymbolTableDriver {
 
     var stream = new CharStream(file)
     val la = new LexicalAnalyzer(stream)
-    while (!la.end) {
-      la.getToken().map(x => x match {
+    val tokens = la.toList
+    tokens.filter(_.isFailure).foreach(f => println("Error encountered: "+f.toString))
+    tokens.foreach(tryToken =>
+      tryToken.map(x => x match {
         case t: INTCONSTANT => constantTable.insert(ConstantEntry(t.value, "INTCONSTANT"))
         case t: REALCONSTANT => constantTable.insert(ConstantEntry(t.value, "REALCONSTANT"))
         case t: IDENTIFIER => globalTable.insert(VariableEntry(t.value, "IDENTIFIER"))
         case _ =>
-      })
-    }
+      }))
     keywordTable.dumpTable()
     globalTable.dumpTable()
     constantTable.dumpTable()

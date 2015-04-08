@@ -10,7 +10,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   var stack: Stack[GrammarSymbol] = new Stack() ++ List(Goal, ENDOFFILE)
   //lookup using (terminal index)(nonterminal index)
   val parseTable: Array[Array[Int]] = readParseTable("parsetable-2const.dat")
-  var current: Token = lexicalAnalyzer.getToken().get
+  var current: Token = lexicalAnalyzer.next().get
 
   //() -> List[Try[String]]
   def parse() = {
@@ -49,7 +49,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   }
 
   def readInput() = {
-    current = lexicalAnalyzer.getToken().get
+    current = lexicalAnalyzer.next().get
   }
 
   def parseTableLookUp(current: Token, top: NonTerminal) = {

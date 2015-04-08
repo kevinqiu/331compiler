@@ -8,7 +8,7 @@ import compiler._
 import CS331.errors._;
 
 //end indicates when ENDMARKER has appeared and nextToken results in no new values
-class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
+class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) extends Iterator[Try[Token]] {
 
   var lastToken: Try[Token] = Failure(new Exception("placeholder"))
 
@@ -229,10 +229,11 @@ class LexicalAnalyzer(var stream: CharStream, var end: Boolean = false) {
     lastToken
   }
 
-  //get next token
-  def getToken(): Try[Token] = {
+  def next(): Try[Token] = {
     Try(nextToken()).flatten
   }
+
+  def hasNext = !end
 
   def getLineNumber(): Int = {
     stream.lineNumber()

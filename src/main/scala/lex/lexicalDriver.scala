@@ -11,13 +11,10 @@ object LexicalDriver {
     val bw = new BufferedWriter(new FileWriter(writeFile))
     var stream = new CharStream(file)
     val la = new LexicalAnalyzer(stream)
-    var tokens = new ListBuffer[Try[Token]]
-    while (!la.end) {
-      val t = la.getToken()
-      tokens += t
+    la.foreach(t => {
       println(t)
       bw.write(t.toString+"\n")
-    }
+    })
     bw.close()
   }
 }
