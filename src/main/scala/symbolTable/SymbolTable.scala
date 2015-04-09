@@ -23,15 +23,15 @@ class SymbolTable {
 
   var table = new HashMap[String, SymbolTableEntry]()
 
-  def lookup(entry: SymbolTableEntry) = {
-    table.getOrElseUpdate(entry.name, entry)
+  def lookup(name: String): Option[SymbolTableEntry] = {
+    table.get(name)
   }
 
-  def insert(entry: SymbolTableEntry) = {
+  def insert(entry: SymbolTableEntry): Option[SymbolTableEntry] = {
     table.put(entry.name, entry)
   }
 
-  def dumpTable() = {
+  def dumpTable(): Unit = {
     table.foreach(e => println(e._2))
   }
 
