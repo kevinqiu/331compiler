@@ -1,10 +1,8 @@
 You must have sbt(scala built tool installed):
 
 cd into directory
-sbt
-run "<full path to input file>"
-
-There are two parser test inputs. "parsetest.dat" should parse successfully and "parseTermSkipping.dat" will result in errors.
+pathtosbtfolder/sbt
+run "input file"
 
 Notes:
 
