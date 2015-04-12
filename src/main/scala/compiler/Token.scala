@@ -2,10 +2,11 @@ package compiler
 
 trait GrammarSymbol
 
-abstract class Token(val index: Int) extends GrammarSymbol
-abstract class Keyword(val value: String, index: Int) extends Token(index)
+abstract class Token(val value: String, val index: Int) extends GrammarSymbol
 
-trait Op { val value: Int; val symbol: String }
+abstract class Keyword(value: String, index: Int) extends Token(value, index)
+
+trait Op { val symbol: String }
 
 //Reserved Keywords
 case object PROGRAM extends Keyword("PROGRAM", 0)
@@ -26,19 +27,19 @@ case object WHILE extends Keyword("WHILE", 14)
 case object DO extends Keyword("DO", 15)
 case object NOT extends Keyword("NOT", 16)
 
-case class IDENTIFIER(value: String = "") extends Token(17) {
+case class IDENTIFIER(override val value: String = "") extends Token(value, 17) {
   override def equals(o: Any) = o match {
     case o: IDENTIFIER => true
     case _ => false
   }
 }
-case class INTCONSTANT(value: String = "") extends Token(18) {
+case class INTCONSTANT(override val value: String = "") extends Token(value, 18) {
   override def equals(o: Any) = o match {
     case o: INTCONSTANT => true
     case _ => false
   }
 }
-case class REALCONSTANT(value: String = "") extends Token(19) {
+case class REALCONSTANT(override val value: String = "") extends Token(value, 19) {
   override def equals(o: Any) = o match {
     case o: REALCONSTANT => true
     case _ => false
@@ -48,19 +49,19 @@ case class REALCONSTANT(value: String = "") extends Token(19) {
 
 
 //Symbols
-case class ADDOP(value: Int = 0, symbol: String = "") extends Token(22) with Op {
+case class ADDOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 22) with Op {
   override def equals(o: Any) = o match {
     case o: ADDOP => true
     case _ => false
   }
 }
-case class RELOP(value: Int = 0, symbol: String = "") extends Token(20) with Op {
+case class RELOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 20) with Op {
   override def equals(o: Any) = o match {
     case o: RELOP => true
     case _ => false
   }
 }
-case class MULOP(value: Int = 0, symbol: String = "") extends Token(21) with Op {
+case class MULOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 21) with Op {
   override def equals(o: Any) = o match {
     case o: MULOP => true
     case _ => false
@@ -79,5 +80,4 @@ case object UNARYMINUS extends Keyword("-", 31)
 case object UNARYPLUS extends Keyword("+", 32)
 case object DOUBLEDOT extends Keyword("..", 33)
 case object ENDMARKER extends Keyword(".", 34)
-
-case object ENDOFFILE extends Token(35)
+case object ENDOFFILE extends Keyword("eof", 35)

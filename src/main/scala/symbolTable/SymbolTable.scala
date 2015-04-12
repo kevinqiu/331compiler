@@ -8,7 +8,7 @@ import collection.mutable.HashMap
 
 abstract class SymbolTableEntry{ val name: String }
 
-case class ArrayEntry(name: String, address: String, dataType: String, upperBound: String, lowerBound: String) extends SymbolTableEntry
+case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry
 
 case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry
 

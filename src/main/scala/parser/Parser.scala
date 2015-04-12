@@ -2,6 +2,7 @@ package parser
 
 import lex._
 import compiler._
+import semanticActions._
 import collection.mutable.Stack
 import util.{Try, Success, Failure}
 import collection.mutable.ListBuffer
@@ -11,6 +12,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   //lookup using (terminal index)(nonterminal index)
   val parseTable: Array[Array[Int]] = readParseTable("parsetable-2const.dat")
   var current: Token = lexicalAnalyzer.next().get
+  var semanticActions = new SemanticActions
 
   //() -> List[Try[String]]
   def parse() = {
@@ -21,7 +23,8 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
         case t: Token => terminalMatch(t)
         case nt: NonTerminal => parseTableLookUp(current, nt)
         case a: SemanticAction => {
-          stack.pop
+          stack.pop()
+          semanticActions.execute(a, current)
           Success("SA Matched")
         }
       }
@@ -33,7 +36,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
 
   def terminalMatch(t: Token) = {
     if (current == t) {
-      stack.pop
+      stack.pop()
       readInput()
       Success("Terminal Matched")
     } else {

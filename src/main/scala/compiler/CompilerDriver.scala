@@ -8,7 +8,7 @@ object Compiler {
     if (args.length == 0) {
       println("No input file specified")
     } else {
-      SymbolTableDriver.run(args(0).toString)
+      ParseDriver.run(args(0).toString)
     }
   }
 }
