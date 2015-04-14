@@ -16,7 +16,7 @@ class LexicalAnalyzer(var stream: CharStream) extends Iterator[Try[Token]] {
   //categorize Tokens
   val keywords = List(PROGRAM, BEGIN, END, VAR, FUNCTION, PROCEDURE, RESULT, INTEGER, REAL, ARRAYTOKEN, OF, IF, THEN, ELSE, WHILE, DO, NOT)
 
-  val opString = List(MULOP(3, "div"), MULOP(4, "mod"), MULOP(5, "and"),ADDOP(3, "or"))
+  val opString = List(MULOP(3, "div"), MULOP(4, "mod"), MULOP(5, "and"), ADDOP(3, "or"))
 
   val simpleOpSymbol = List(RELOP(2, "<>"), RELOP(3, "<"), RELOP(4, ">"), RELOP(5,"<="),RELOP(6, ">="))
 

@@ -8,15 +8,19 @@ import collection.mutable.HashMap
 
 abstract class SymbolTableEntry{ val name: String }
 
-case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry
+trait DataEntry {
+  val dataType: String
+}
 
-case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry
+case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry with DataEntry
 
-case class FunctionEntry(name: String, numberOfParameters: Int, parameterInfo: Int, result: Any) extends SymbolTableEntry
+case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry with DataEntry
+
+case class FunctionEntry(name: String, numberOfParameters: Int, parameterInfo: Int, result: String) extends SymbolTableEntry
 
 case class ProcedureEntry(name: String, numberOfParameters: Int, parameterInfo: Int) extends SymbolTableEntry
 
-case class VariableEntry(name: String, dataType: String) extends SymbolTableEntry
+case class VariableEntry(name: String, address: Int, dataType: String) extends SymbolTableEntry with DataEntry
 
 
 class SymbolTable {
@@ -35,6 +39,10 @@ class SymbolTable {
     table.foreach(e => println(e._2))
   }
 
+  def apply(name: String) = {
+    table(name)
+  }
+
 }
 
 object SymbolTableDriver {
@@ -51,7 +59,7 @@ object SymbolTableDriver {
       tryToken.map(x => x match {
         case t: INTCONSTANT => constantTable.insert(ConstantEntry(t.value, "INTCONSTANT"))
         case t: REALCONSTANT => constantTable.insert(ConstantEntry(t.value, "REALCONSTANT"))
-        case t: IDENTIFIER => globalTable.insert(VariableEntry(t.value, "IDENTIFIER"))
+        case t: IDENTIFIER => globalTable.insert(VariableEntry(t.value, 0, "IDENTIFIER"))
         case _ =>
       }))
     println("keywordTable: ")

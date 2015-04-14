@@ -31,6 +31,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
 
       results += result
     }
+    println(semanticActions.quadruples.toString)
     results.toList
   }
 

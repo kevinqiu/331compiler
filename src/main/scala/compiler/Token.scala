@@ -33,17 +33,22 @@ case class IDENTIFIER(override val value: String = "") extends Token(value, 17) 
     case _ => false
   }
 }
-case class INTCONSTANT(override val value: String = "") extends Token(value, 18) {
+
+trait CONSTANT {def getType: String}
+
+case class INTCONSTANT(override val value: String = "") extends Token(value, 18) with CONSTANT {
   override def equals(o: Any) = o match {
     case o: INTCONSTANT => true
     case _ => false
   }
+  def getType = "integer"
 }
-case class REALCONSTANT(override val value: String = "") extends Token(value, 19) {
+case class REALCONSTANT(override val value: String = "") extends Token(value, 19) with CONSTANT {
   override def equals(o: Any) = o match {
     case o: REALCONSTANT => true
     case _ => false
   }
+  def getType = "real"
 }
 
 
