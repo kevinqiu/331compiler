@@ -54,23 +54,33 @@ case class REALCONSTANT(override val value: String = "") extends Token(value, 19
 
 
 //Symbols
-case class ADDOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 22) with Op {
-  override def equals(o: Any) = o match {
-    case o: ADDOP => true
-    case _ => false
-  }
+case class ADDOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 22) with Op
+
+object addOps {
+  val + = ADDOP(1, "+")
+  val - = ADDOP(2, "-")
+  val or = ADDOP(3, "or")
 }
-case class RELOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 20) with Op {
-  override def equals(o: Any) = o match {
-    case o: RELOP => true
-    case _ => false
-  }
+
+case class RELOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 20) with Op
+
+object relOps {
+  val equals = RELOP(1, "=")
+  val <> = RELOP(2, "<>")
+  val <= = RELOP(5, "<=")
+  val < = RELOP(3 , "<")
+  val >= = RELOP(6, ">=")
+  val > = RELOP(4, ">")
 }
-case class MULOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 21) with Op {
-  override def equals(o: Any) = o match {
-    case o: MULOP => true
-    case _ => false
-  }
+
+case class MULOP(opIdx: Int = 0, symbol: String = "") extends Token(opIdx.toString, 21) with Op
+
+object mulOps {
+  val * = MULOP(1, "*")
+  val / = MULOP(2, "/")
+  val div = MULOP(3, "div")
+  val mod = MULOP(4, "mod")
+  val and = MULOP(5, "and")
 }
 
 case object ASSIGNOP extends Keyword(":=", 23)

@@ -12,6 +12,7 @@ trait DataEntry {
   val dataType: String
 }
 
+
 case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry with DataEntry
 
 case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry with DataEntry

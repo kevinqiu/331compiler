@@ -16,9 +16,7 @@ class LexicalAnalyzer(var stream: CharStream) extends Iterator[Try[Token]] {
   //categorize Tokens
   val keywords = List(PROGRAM, BEGIN, END, VAR, FUNCTION, PROCEDURE, RESULT, INTEGER, REAL, ARRAYTOKEN, OF, IF, THEN, ELSE, WHILE, DO, NOT)
 
-  val opString = List(MULOP(3, "div"), MULOP(4, "mod"), MULOP(5, "and"), ADDOP(3, "or"))
-
-  val simpleOpSymbol = List(RELOP(2, "<>"), RELOP(3, "<"), RELOP(4, ">"), RELOP(5,"<="),RELOP(6, ">="))
+  val opString = List(mulOps.div, mulOps.mod, mulOps.and, addOps.or)
 
   val simpleSymbols = List(COMMA, SEMICOLON, RIGHTPAREN, LEFTPAREN, RIGHTBRACKET, LEFTBRACKET, ASSIGNOP)
 
@@ -147,20 +145,20 @@ class LexicalAnalyzer(var stream: CharStream) extends Iterator[Try[Token]] {
       case '<' => {
         if (peek == '>') {
           s += getChar()
-          Success(RELOP(2, "<>"))
+          Success(relOps.<>)
         } else if (peek == '=') {
           s += getChar()
-          Success(RELOP(5, "<="))
+          Success(relOps.<=)
         } else {
-          Success(RELOP(3 , "<"))
+          Success(relOps.<)
         }
       }
       case '>' => {
         if (peek == '=') {
           s += getChar()
-          Success(RELOP(6, ">="))
+          Success(relOps.>=)
         } else {
-          Success(RELOP(4, ">"))
+          Success(relOps.>)
         }
       }
       case ':' => {
@@ -173,26 +171,26 @@ class LexicalAnalyzer(var stream: CharStream) extends Iterator[Try[Token]] {
       }
       case '+' => {
         if (isAddOpLast()) {
-          Success(ADDOP(1, "+"))
+          Success(addOps.+)
         } else {
           Success(UNARYPLUS)
         }
       }
       case '-' => {
          if (isAddOpLast()) {
-          Success(ADDOP(2, "-"))
+          Success(addOps.-)
         } else {
           Success(UNARYMINUS)
         }
       }
       case '=' => {
-        Success(RELOP(1, "="))
+        Success(relOps.equals)
       }
       case '*' => {
-        Success(MULOP(1, "*"))
+        Success(mulOps.*)
       }
       case '/' => {
-        Success(MULOP(2, "/"))
+        Success(mulOps./)
       }
       case _ => {
         Try(matchKeywordList(simpleSymbols, s).head)

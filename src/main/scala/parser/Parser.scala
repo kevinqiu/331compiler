@@ -12,6 +12,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   //lookup using (terminal index)(nonterminal index)
   val parseTable: Array[Array[Int]] = readParseTable("parsetable-2const.dat")
   var current: Token = lexicalAnalyzer.next().get
+  var last: Token = null
   var semanticActions = new SemanticActions
 
   //() -> List[Try[String]]
@@ -24,19 +25,26 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
         case nt: NonTerminal => parseTableLookUp(current, nt)
         case a: SemanticAction => {
           stack.pop()
-          semanticActions.execute(a, current)
+          semanticActions.execute(a, last)
           Success("SA Matched")
         }
       }
 
       results += result
     }
-    println(semanticActions.quadruples.toString)
+    semanticActions.semanticStackDump()
     results.toList
   }
 
   def terminalMatch(t: Token) = {
-    if (current == t) {
+    def matchTerminal(t: Token, c: Token) = {
+      t match {
+        case o: Op => t.isInstanceOf[Op]
+        case _ => t == c
+      }
+    }
+    if (matchTerminal(t, current)) {
+      last = current
       stack.pop()
       readInput()
       Success("Terminal Matched")

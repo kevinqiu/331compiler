@@ -10,9 +10,15 @@ class SemanticStack[A] extends Stack[A] {
   def popString(): String = {
     val element = this.pop()
     element match {
-      case t: Token => t.value
+      case t: Token => t.value.toLowerCase
       case s: String => s
       case _ => ""
+    }
+  }
+  def popDe(): DataEntry = {
+    val element = this.pop()
+    element match {
+      case i: DataEntry => i
     }
   }
 }
@@ -30,6 +36,11 @@ class SemanticActions {
   var localTable = new SymbolTable
   var quadruples = new ListBuffer[Quadruple]()
   var errors = new ListBuffer[CompilerError]
+  var parmCount = new Stack[Int]()
+  var nextParm = new Stack[SymbolTableEntry]()
+  var eTrue = List[Int]()
+  var eFalse = List[Int]()
+  var skipElse = List[Int]()
   var insert = false
   var isArray = false
   var global = false
@@ -41,6 +52,26 @@ class SemanticActions {
   var currentFunction = FunctionEntry("", 0, 0, "")
   var tmp = 0
 
+  object DTYPE {
+    val integer: String = INTCONSTANT().getType
+    val real: String = REALCONSTANT().getType
+  }
+
+  def nextTmp() = {
+    tmp = tmp + 1
+    tmp.toString
+  }
+
+  def operatorOpCode(operator: Any) = {
+    operator match {
+      case addOps.+ => "add"
+      case addOps.- => "sub"
+      case mulOps.* => "mul"
+      case mulOps.div => "div"
+      case _ => ""
+    }
+  }
+
   def action3(token: Token) = {
     val dataType = semanticStack.popString()
 
@@ -50,7 +81,8 @@ class SemanticActions {
       val lowerBound = semanticStack.popString().toInt
       val mSize = upperBound - lowerBound + 1
 
-      while (semanticStack.head.isInstanceOf[IDENTIFIER]) {
+      while (semanticStack.nonEmpty &&
+        semanticStack.head.isInstanceOf[IDENTIFIER]) {
         val id = semanticStack.popString()
         if (global) {
           globalTable.insert(ArrayEntry(id, globalMemory, dataType, upperBound, lowerBound))
@@ -63,7 +95,7 @@ class SemanticActions {
 
     } else {
 
-      while (semanticStack.head.isInstanceOf[IDENTIFIER]) {
+      while (semanticStack.nonEmpty && semanticStack.head.isInstanceOf[IDENTIFIER]) {
         val id = semanticStack.popString()
         if (global) {
           globalTable.insert(VariableEntry(id, globalMemory, dataType))
@@ -80,7 +112,7 @@ class SemanticActions {
   }
 
   def action9(token: Token) = {
-    while (semanticStack.head.isInstanceOf[IDENTIFIER]) {
+    while (semanticStack.nonEmpty && semanticStack.head.isInstanceOf[IDENTIFIER]) {
       val id = semanticStack.popString()
       //picked abritary 0 for address entry, not sure if correct, revist later
       globalTable.insert(VariableEntry(id, 0, "restricted"))
@@ -102,25 +134,52 @@ class SemanticActions {
   }
 
   def action31(token: Token) = {
-    println(semanticStack)
-    val eType = semanticStack.pop()/*
-    val id1 = semanticStack.pop()
+    val eType = semanticStack.pop()
+    val id1 = semanticStack.popDe()
     val offset = semanticStack.pop()
-    val id2 = semanticStack.pop()*/
+    val eType2 = semanticStack.pop()
+    val id2 = semanticStack.popDe()
+    if (eType != ARITHMETIC) {
+      errors += GenericSemanticError("Error at "+ token)
+    }
+    val check = typeCheck(id1, id2)
+    if (check == 3) {
+      errors += GenericSemanticError("Error at "+ token)
+    }
+    if (check == 2) {
+      val tmp = create(DTYPE.real)
+      gen("ltof", id2, tmp)
+      if (offset == null) {
+        gen("move", tmp, id1)
+      } else {
+        gen("stor", tmp, offset, id1)
+      }
+    } else if (offset == null) {
+      gen("move", id2, id1)
+    } else {
+      gen("stor", id2, offset, id1)
+    }
   }
 
   //not complete
   def action34() = {
-    if (semanticStack.head.isInstanceOf[FunctionEntry]) {
+    if (semanticStack.nonEmpty &&
+      semanticStack.head.isInstanceOf[FunctionEntry]) {
       //action52()
     } else {
       semanticStack.push(null)
     }
   }
 
+  //not complete
+  def action35(token: Token) = {
+    parmCount.push(0)
+    //symbolTable().lookup(id)
+  }
+
   def action42(token: Token) = {
     val eType = semanticStack.pop()
-    if (token == ADDOP(3, "or")) {
+    if (token == addOps.or) {
       if (eType != RELATIONAL) {
         errors += GenericSemanticError("Error at "+ token)
       }
@@ -133,10 +192,146 @@ class SemanticActions {
     semanticStack.push(token)
   }
 
-  //incomplete
+  //incomplete relational action
+  def action43(token: Token) = {
+    val eType = semanticStack.pop()
+    val id1 = semanticStack.popDe()
+    val operator = semanticStack.pop()
+    val id2 = semanticStack.popDe()
+    val tCheck = typeCheck(id1, id2)
+    if (eType == RELATIONAL) {
+    } else {
+      if (eType != ARITHMETIC) {
+      }
+      tCheck match {
+        case 0 => {
+          val tmp = create(DTYPE.integer)
+          gen(operatorOpCode(operator), id1, id2, tmp)
+          semanticStack.push(tmp)
+        }
+        case 1 => {
+          val tmp = create(DTYPE.real)
+          gen("f" + operatorOpCode(operator), id1, id2, tmp)
+          semanticStack.push(tmp)
+        }
+        case 2 => {
+          val tmp1 = create(DTYPE.real)
+          gen("ltof", id2, tmp1)
+          val tmp2 = create(DTYPE.real)
+          gen("f" + operatorOpCode(operator), id1, tmp1, tmp2)
+          semanticStack.push(tmp2)
+        }
+        case 3 => {
+          val tmp1 = create(DTYPE.real)
+          gen("ltof", id1, tmp1)
+          val tmp2 = create(DTYPE.real)
+          gen("f" + operatorOpCode(operator), tmp1, id2, tmp2)
+          semanticStack.push(tmp2)
+        }
+      }
+    }
+    semanticStack.push(ARITHMETIC)
+  }
+
+  //incomplete relational action
   def action44(token: Token) = {
     val eType = semanticStack.pop()
     semanticStack.push(token)
+  }
+
+  //incomplete relational action
+  def action45(token: Token) = {
+    val eType = semanticStack.pop()
+    val id1 = semanticStack.popDe()
+    val operator = semanticStack.pop()
+    val id2 = semanticStack.popDe()
+    val tCheck = typeCheck(id1, id2)
+    //incomplete AND
+    if (operator == mulOps.and) {
+      if (eType != RELATIONAL) {
+        errors += GenericSemanticError("Error at "+ token)
+      }
+    } else {
+      if (eType != ARITHMETIC) {
+        errors += GenericSemanticError("Error at "+ token)
+      }
+      if ((typeCheck(id1, id2) != 0) && (operator == mulOps.mod)) {
+        errors += GenericSemanticError("Error at "+ token)
+      }
+      tCheck match {
+        case 0 => {
+          if (operator == mulOps.mod) {
+            val tmp1 = create(DTYPE.integer)
+            gen("move", id1, tmp1)
+            val tmp2 = create(DTYPE.integer)
+            gen("move", tmp1, tmp2)
+            gen("sub", tmp2, id2, tmp1)
+            gen("bge", tmp1, id2, nextQuad - 2)
+            semanticStack.push(tmp1)
+          } else if (operator == mulOps./) {
+            val tmp1 = create(DTYPE.real)
+            gen("ltof", id1, tmp1)
+            val tmp2 = create(DTYPE.real)
+            gen("ltof", id2, tmp2)
+            val tmp3 = create(DTYPE.real)
+            gen("fdiv", tmp1, tmp2, tmp3)
+            semanticStack.push(tmp3)
+          } else {
+            val tmp = create(DTYPE.integer)
+            gen(operatorOpCode(operator),id1, id2, tmp)
+            semanticStack.push(tmp)
+          }
+        }
+        case 1 => {
+          if (operator == mulOps.div) {
+            val tmp1 = create(DTYPE.integer)
+            gen("ftol", id1, tmp1)
+            val tmp2 = create(DTYPE.integer)
+            gen("ftol", id2, tmp2)
+            val tmp3 = create(DTYPE.integer)
+            gen("div", tmp1, tmp2, tmp3)
+            semanticStack.push(tmp3)
+          } else {
+            val tmp = create(DTYPE.real)
+            gen("f"+operatorOpCode(operator), id1, id2, tmp)
+            semanticStack.push(tmp)
+          }
+        }
+        case 2 => {
+          if (operator == mulOps.div) {
+            val tmp1 = create(DTYPE.integer)
+            gen("ftol", id1, tmp1)
+            val tmp2 = create(DTYPE.integer)
+            gen("div", tmp1, id2, tmp2)
+            semanticStack.push(tmp2)
+          } else {
+            val tmp1 = create(DTYPE.real)
+            gen("ftol", id1, tmp1)
+            val tmp2 = create(DTYPE.real)
+            gen("f"+operatorOpCode(operator), id1, tmp1, tmp2)
+            semanticStack.push(tmp2)
+          }
+        }
+        case 3 => {
+          if (operator == mulOps.div) {
+            val tmp1 = create(DTYPE.integer)
+            gen("ftol", id2, tmp1)
+            val tmp2 = create(DTYPE.integer)
+            gen("div", id1, tmp1, tmp2)
+            semanticStack.push(tmp2)
+          } else {
+            val tmp1 = create(DTYPE.real)
+            gen("ltof", id1, tmp1)
+            val tmp2 = create(DTYPE.real)
+            gen("f"++operatorOpCode(operator), tmp1, id2, tmp2)
+            semanticStack.push(tmp2)
+          }
+
+        }
+        case _ =>
+      }
+    }
+    semanticStack.push(ARITHMETIC)
   }
 
   def action46(token: Token) = {
@@ -153,7 +348,11 @@ class SemanticActions {
           val result = constantTable.lookup(id)
           result match {
             case Some(res) => semanticStack.push(res)
-            case None => constantTable.insert(ConstantEntry(id, t.getType))
+            case None => {
+              val const = ConstantEntry(id, t.getType)
+              constantTable.insert(const)
+              semanticStack.push(const)
+            }
           }
         }
         case _ =>
@@ -171,8 +370,7 @@ class SemanticActions {
           val id = semanticStack.pop()
           id match {
             case entry: SymbolTableEntry with DataEntry => {
-              val tmpEntry = create(tmp.toString, entry.dataType)
-              tmp = tmp + 1
+              val tmpEntry = create(entry.dataType)
               gen("load", entry.name, offset, tmpEntry)
               semanticStack.push(tmpEntry)
               semanticStack.push(ARITHMETIC)
@@ -199,8 +397,8 @@ class SemanticActions {
   }*/
 
   def action55() = {
-    backPatch(globalStore, globalMemory)
     gen("free", globalMemory)
+    backPatch(globalStore, globalMemory)
     gen("PROCEND")
   }
 
@@ -211,7 +409,9 @@ class SemanticActions {
   }
 
   def execute(action: SemanticAction, token: Token) = {
-    println(action)
+    /*println(action)
+    println(semanticStack)
+    println(token)*/
     action match {
       case Action1 => insert = true
       case Action2 => insert = false
@@ -219,22 +419,22 @@ class SemanticActions {
       case Action4 => semanticStack.push(token)
       case Action6 => isArray = true
       case Action7 => semanticStack.push(token)
-      case Action9 => action9(token)
+//      case Action9 => action9(token)
       case Action13 => semanticStack.push(token)
-      case Action30 => action30(token)
+/*      case Action30 => action30(token)
       case Action31 => action31(token)
       case Action34 => action34()
       case Action40 => semanticStack.push(token)
       case Action42 => action42(token)
-      //case Action43 =>
+      case Action43 => action43(token)
       case Action44 => action44(token)
-     // case Action45 =>
+      case Action45 => action45(token)
       case Action46 => action46(token)
       case Action48 => action48()
       //case Action53 => action53(token)
       case Action55 => action55()
-      case Action56 => action56()
-      case _ => println("action not yet implemented")
+      case Action56 => action56()*/
+      case _ => //println("action not yet implemented")
     }
   }
 
@@ -253,8 +453,14 @@ class SemanticActions {
     quad
   }
 
+  def genOffset(address: Int): String = {
+    if (global) "_" + address else "%" + address
+  }
+
   def processArgument(a: Any) = {
     a match {
+      case v: VariableEntry => genOffset(v.address)
+      case c: ConstantEntry => c.name
       case _ => a.toString
     }
   }
@@ -264,22 +470,25 @@ class SemanticActions {
     quadruples.update(previous, amended)
   }
 
-  def typeCheck(id1: VariableEntry, id2: VariableEntry): Int = {
+  def typeCheck(id1: DataEntry, id2: DataEntry): Int = {
     (id1.dataType, id2.dataType) match {
-      case ("integer", "integer") => 0
-      case ("real", "real") => 1
-      case ("real", "integer") => 2
-      case ("integer", "real") => 3
+      case (DTYPE.integer, DTYPE.integer) => 0
+      case (DTYPE.real, DTYPE.real) => 1
+      case (DTYPE.real, DTYPE.integer) => 2
+      case (DTYPE.integer, DTYPE.real) => 3
     }
   }
 
-  def create(name: String, dType: String): SymbolTableEntry = {
+  def create(dType: String): SymbolTableEntry = {
+    val name = "$$" + "TEMP" + nextTmp()
     if (global) {
-      globalTable.insert(VariableEntry(name, globalMemory, dType))
+      globalTable.insert(VariableEntry(name, -globalMemory, dType))
+      globalMemory = globalMemory + 1
       globalTable(name)
     }
     else {
-      localTable.insert(VariableEntry(name, localMemory, dType))
+      localTable.insert(VariableEntry(name, -localMemory, dType))
+      localMemory = localMemory + 1
       localTable(name)
     }
   }
@@ -291,6 +500,11 @@ class SemanticActions {
     else {
       localTable
     }
+  }
+
+  def semanticStackDump() = {
+    println("Contents of semantic stack")
+    semanticStack.foreach(println(_))
   }
 
 }
