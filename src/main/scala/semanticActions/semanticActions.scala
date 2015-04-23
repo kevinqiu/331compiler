@@ -5,6 +5,7 @@ import symbol._
 
 import util.{Try, Success, Failure}
 import collection.mutable.{Stack, ListBuffer}
+import scala.reflect.ClassTag
 
 class SemanticStack[A] extends Stack[A] {
   def popString(): String = {
@@ -15,10 +16,11 @@ class SemanticStack[A] extends Stack[A] {
       case _ => ""
     }
   }
-  def popDe(): DataEntry = {
+
+  def popT[T: ClassTag]() = {
     val element = this.pop()
     element match {
-      case i: DataEntry => i
+      case e: T => e
     }
   }
 }
@@ -140,10 +142,10 @@ class SemanticActions {
 
   def action31(token: Token) = {
     val eType = semanticStack.pop()
-    val id1 = semanticStack.popDe()
+    val id1 = semanticStack.popT[DataEntry]()
     val offset = semanticStack.pop()
     val eType2 = semanticStack.pop()
-    val id2 = semanticStack.popDe()
+    val id2 = semanticStack.popT[DataEntry]()
     if (eType != ARITHMETIC) {
       errors += GenericSemanticError("Error at "+ token)
     }
@@ -166,18 +168,22 @@ class SemanticActions {
     }
   }
   //not complete
-  /*
+/*
   def action33(token: Token) = {
     val eType = semanticStack.pop()
     if (eType != ARITHMETIC) {
       errors += GenericSemanticError("Error at "+ token)
     }
     val id = semanticStack.head
-    if (id.isInstanceOf[] && id.dataType != DTYPE.integer) {
+    if (id.isInstanceOf[DataEntry] && id.dataType != DTYPE.integer) {
       errors += GenericSemanticError("Error at "+ token)
     }
     val tmp = create(DTYPE.integer)
-    gen("sub", tmp1, 
+    val arrayEntry = semanticStack.last
+    arrayEntry match {
+      case a: ArrayEntry => //gen("sub", tmp1, )
+    }
+    semanticStack.push(tmp)
   }*/
 
   //not complete
@@ -214,9 +220,9 @@ class SemanticActions {
   //incomplete relational action
   def action43(token: Token) = {
     val eType = semanticStack.pop()
-    val id1 = semanticStack.popDe()
+    val id1 = semanticStack.popT[DataEntry]()
     val operator = semanticStack.pop()
-    val id2 = semanticStack.popDe()
+    val id2 = semanticStack.popT[DataEntry]()
     val tCheck = typeCheck(id1, id2)
     if (eType == RELATIONAL) {
     } else {
@@ -261,9 +267,9 @@ class SemanticActions {
   //incomplete relational action
   def action45(token: Token) = {
     val eType = semanticStack.pop()
-    val id1 = semanticStack.popDe()
+    val id1 = semanticStack.popT[DataEntry]()
     val operator = semanticStack.pop()
-    val id2 = semanticStack.popDe()
+    val id2 = semanticStack.popT[DataEntry]()
     val tCheck = typeCheck(id1, id2)
     //incomplete AND
     if (operator == mulOps.and) {
@@ -428,9 +434,9 @@ class SemanticActions {
   }
 
   def execute(action: SemanticAction, token: Token) = {
-//    println(action)
-//    println(semanticStack)
-//    println(token)
+    println(action)
+    println(semanticStack)
+    println(token)
     action match {
       case Action1 => insert = true
       case Action2 => insert = false
@@ -441,8 +447,8 @@ class SemanticActions {
       case Action9 => action9(token)
       case Action13 => semanticStack.push(token)
       case Action30 => action30(token)
-//      case Action31 => action31(token)
-//      case Action34 => action34()
+      case Action31 => action31(token)
+      case Action34 => action34()
       case Action40 => semanticStack.push(token)
       case Action42 => action42(token)
       case Action43 => action43(token)
@@ -453,7 +459,7 @@ class SemanticActions {
       //case Action53 => action53(token)
       case Action55 => action55()
       case Action56 => action56()
-      case _ => //println("action not yet implemented")
+      case _ => println("action not yet implemented")
     }
   }
 
