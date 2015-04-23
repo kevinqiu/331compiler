@@ -32,7 +32,8 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
 
       results += result
     }
-    semanticActions.semanticStackDump()
+    println("Quadruples")
+    semanticActions.quadruples.foreach(println(_))
     results.toList
   }
 

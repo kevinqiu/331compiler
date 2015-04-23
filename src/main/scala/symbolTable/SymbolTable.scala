@@ -24,24 +24,18 @@ case class ProcedureEntry(name: String, numberOfParameters: Int, parameterInfo: 
 case class VariableEntry(name: String, address: Int, dataType: String) extends SymbolTableEntry with DataEntry
 
 
-class SymbolTable {
-
-  var table = new HashMap[String, SymbolTableEntry]()
+class SymbolTable extends HashMap[String, SymbolTableEntry] {
 
   def lookup(name: String): Option[SymbolTableEntry] = {
-    table.get(name)
+    this.get(name)
   }
 
   def insert(entry: SymbolTableEntry): Option[SymbolTableEntry] = {
-    table.put(entry.name, entry)
+    this.put(entry.name, entry)
   }
 
   def dumpTable(): Unit = {
-    table.foreach(e => println(e._2))
-  }
-
-  def apply(name: String) = {
-    table(name)
+    this.foreach(e => println(e._2))
   }
 
 }

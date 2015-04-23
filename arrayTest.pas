@@ -1,4 +1,3 @@
-
 program arrayTest(input, output);    {Sample tvi code here}
 var
    m : array[1..5] of integer;
@@ -15,4 +14,3 @@ begin
         write(m[4]);
         write(m[5])
 end.
-

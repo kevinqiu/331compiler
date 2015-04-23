@@ -27,7 +27,11 @@ abstract class ETYPE
 case class ARITHMETIC extends ETYPE
 case class RELATIONAL extends ETYPE
 
-case class Quadruple(opCode: String, arg1: String, arg2: String, result: String)
+case class Quadruple(opCode: String, arg1: String = "", arg2: String = "", result: String = "") {
+  override def toString() = {
+    (opCode + " " + arg1 + " " + arg2 + " " + result).trim
+  }
+}
 
 class SemanticActions {
   var semanticStack: SemanticStack[Any] = new SemanticStack
@@ -41,16 +45,18 @@ class SemanticActions {
   var eTrue = List[Int]()
   var eFalse = List[Int]()
   var skipElse = List[Int]()
-  var insert = false
+  var insert = true
   var isArray = false
-  var global = false
+  var global = true
   var globalMemory = 0
   var localMemory = 0
   var globalStore = 0
   var localStore = 0
-  var nextQuad = 0
+  var nextQuad = 1
   var currentFunction = FunctionEntry("", 0, 0, "")
   var tmp = 0
+
+  quadruples += Quadruple("CODE")
 
   object DTYPE {
     val integer: String = INTCONSTANT().getType
@@ -118,7 +124,6 @@ class SemanticActions {
       globalTable.insert(VariableEntry(id, 0, "restricted"))
     }
     insert = false
-    gen("CODE")
     gen("call", "main", 0)
     gen("exit")
   }
@@ -148,18 +153,32 @@ class SemanticActions {
     }
     if (check == 2) {
       val tmp = create(DTYPE.real)
-      gen("ltof", id2, tmp)
+      gen("ltof", tmp, id2)
       if (offset == null) {
-        gen("move", tmp, id1)
+        gen("move", id1, tmp)
       } else {
-        gen("stor", tmp, offset, id1)
+        gen("stor", id1, offset, tmp)
       }
     } else if (offset == null) {
-      gen("move", id2, id1)
+      gen("move", id1, id2)
     } else {
       gen("stor", id2, offset, id1)
     }
   }
+  //not complete
+  /*
+  def action33(token: Token) = {
+    val eType = semanticStack.pop()
+    if (eType != ARITHMETIC) {
+      errors += GenericSemanticError("Error at "+ token)
+    }
+    val id = semanticStack.head
+    if (id.isInstanceOf[] && id.dataType != DTYPE.integer) {
+      errors += GenericSemanticError("Error at "+ token)
+    }
+    val tmp = create(DTYPE.integer)
+    gen("sub", tmp1, 
+  }*/
 
   //not complete
   def action34() = {
@@ -274,7 +293,7 @@ class SemanticActions {
             val tmp2 = create(DTYPE.real)
             gen("ltof", id2, tmp2)
             val tmp3 = create(DTYPE.real)
-            gen("fdiv", tmp1, tmp2, tmp3)
+            gen("fdiv", tmp2, tmp1, tmp3)
             semanticStack.push(tmp3)
           } else {
             val tmp = create(DTYPE.integer)
@@ -409,9 +428,9 @@ class SemanticActions {
   }
 
   def execute(action: SemanticAction, token: Token) = {
-    /*println(action)
-    println(semanticStack)
-    println(token)*/
+//    println(action)
+//    println(semanticStack)
+//    println(token)
     action match {
       case Action1 => insert = true
       case Action2 => insert = false
@@ -419,11 +438,11 @@ class SemanticActions {
       case Action4 => semanticStack.push(token)
       case Action6 => isArray = true
       case Action7 => semanticStack.push(token)
-//      case Action9 => action9(token)
+      case Action9 => action9(token)
       case Action13 => semanticStack.push(token)
-/*      case Action30 => action30(token)
-      case Action31 => action31(token)
-      case Action34 => action34()
+      case Action30 => action30(token)
+//      case Action31 => action31(token)
+//      case Action34 => action34()
       case Action40 => semanticStack.push(token)
       case Action42 => action42(token)
       case Action43 => action43(token)
@@ -433,24 +452,33 @@ class SemanticActions {
       case Action48 => action48()
       //case Action53 => action53(token)
       case Action55 => action55()
-      case Action56 => action56()*/
+      case Action56 => action56()
       case _ => //println("action not yet implemented")
     }
   }
 
 
-  def gen(op: String, args: Any*): Quadruple = {
-    val arguments = args.map(processArgument(_))
-    val quad = arguments.length match {
-      case 0 => Quadruple(op, "", "", "")
-      case 1 => Quadruple(op, arguments(0), "", "")
-      case 2 => Quadruple(op, arguments(0), arguments(1), "")
-      case 3 => Quadruple(op, arguments(0), arguments(1), arguments(2))
-      case _ => println("Too many arguments passed to gen"); Quadruple("","","","")
-    }
+  def addQuadruple(quad: Quadruple) = {
     nextQuad = nextQuad + 1
     quadruples += quad
     quad
+  }
+
+  def gen(op: String): Quadruple = {
+    addQuadruple(Quadruple(op))
+  }
+
+  def gen(op: String, arg1: Any): Quadruple = {
+    addQuadruple(Quadruple(op, processArgument(arg1)))
+  }
+
+  def gen(op: String, arg1: Any, arg2: Any): Quadruple = {
+    addQuadruple(Quadruple(op, processArgument(arg1), processArgument(arg2)))
+  }
+
+  def gen(op: String, arg1: Any, arg2: Any, arg3: Any): Quadruple = {
+    addQuadruple(Quadruple(op, processArgument(arg1), processArgument(arg2),
+      processArgument(arg3)))
   }
 
   def genOffset(address: Int): String = {
