@@ -8,6 +8,7 @@ import collection.mutable.{Stack, ListBuffer}
 import scala.reflect.ClassTag
 
 class SemanticStack[A] extends Stack[A] {
+  //holdover from before reflection, replace ASAP
   def popString(): String = {
     val element = this.pop()
     element match {
@@ -23,15 +24,29 @@ class SemanticStack[A] extends Stack[A] {
       case e: T => e
     }
   }
+
+  def headT[T: ClassTag]() = {
+    val element = this.head
+    element match {
+      case e: T => e
+    }
+  }
+
+  def lastT[T: ClassTag]() = {
+    val element = this.last
+    element match {
+      case e: T => e
+    }
+  }
 }
 
 abstract class ETYPE
-case class ARITHMETIC extends ETYPE
-case class RELATIONAL extends ETYPE
+case object ARITHMETIC extends ETYPE
+case object RELATIONAL extends ETYPE
 
-case class Quadruple(opCode: String, arg1: String = "", arg2: String = "", result: String = "") {
+case class Quadruple(opCode: String, arg1: String = "", arg2: String = "", arg3: String = "") {
   override def toString() = {
-    (opCode + " " + arg1 + " " + arg2 + " " + result).trim
+    (opCode + " " + arg1 + " " + arg2 + " " + arg3).trim
   }
 }
 
@@ -44,8 +59,6 @@ class SemanticActions {
   var errors = new ListBuffer[CompilerError]
   var parmCount = new Stack[Int]()
   var nextParm = new Stack[SymbolTableEntry]()
-  var eTrue = List[Int]()
-  var eFalse = List[Int]()
   var skipElse = List[Int]()
   var insert = true
   var isArray = false
@@ -76,7 +89,17 @@ class SemanticActions {
       case addOps.- => "sub"
       case mulOps.* => "mul"
       case mulOps.div => "div"
-      case _ => ""
+    }
+  }
+
+  def relOpCode(relOp: RELOP) = {
+    relOp match {
+      case relOps.equals => "beq"
+      case relOps.<> => "bne"
+      case relOps.<= => "ble"
+      case relOps.< => "blt"
+      case relOps.>= => "bge"
+      case relOps.> => "bgt"
     }
   }
 
@@ -100,7 +123,6 @@ class SemanticActions {
           localMemory = localMemory + mSize
         }
       }
-
     } else {
 
       while (semanticStack.nonEmpty && semanticStack.head.isInstanceOf[IDENTIFIER]) {
@@ -113,10 +135,10 @@ class SemanticActions {
           localMemory = localMemory + 1
         }
       }
-
     }
 
     isArray = false
+    Success("SA complete")
   }
 
   def action9(token: Token) = {
@@ -128,71 +150,151 @@ class SemanticActions {
     insert = false
     gen("call", "main", 0)
     gen("exit")
+    Success("SA complete")
+  }
+
+  def action22(token: Token) = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != RELATIONAL) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      backPatch(semanticStack.headT[List[Int]](), nextQuad)
+      Success("SA complete")
+    }
+  }
+
+  def action24(token: Token) = {
+    val beginLoop = nextQuad
+    semanticStack.push(beginLoop)
+    Success("SA complete")
+  }
+
+  def action25(token: Token) = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != RELATIONAL) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      backPatch(semanticStack.headT[List[Int]](), nextQuad)
+      Success("SA complete")
+    }
+  }
+
+  def action26(token: Token) = {
+    val beginLoop = semanticStack.popT[Int]()
+    val eFalse = semanticStack.popT[List[Int]]()
+    val eTrue = semanticStack.popT[List[Int]]()
+
+    gen("goto", beginLoop)
+    backPatch(eFalse, nextQuad)
+    Success("SA complete")
+  }
+
+  def action27(token: Token) = {
+    val skipElse = makeList(nextQuad)
+    gen("goto", "_")
+    backPatch(semanticStack.headT[List[Int]](), nextQuad)
+    semanticStack.push(skipElse)
+    Success("SA complete")
+  }
+
+  def action28(token: Token) = {
+    val skipElse = semanticStack.popT[List[Int]]()
+    val eFalse = semanticStack.popT[List[Int]]()
+    val eTrue = semanticStack.popT[List[Int]]()
+    backPatch(skipElse, nextQuad)
+    Success("SA complete")
+  }
+
+  def action29(token: Token) = {
+    val eFalse = semanticStack.popT[List[Int]]()
+    val eTrue = semanticStack.popT[List[Int]]()
+
+    backPatch(eFalse, nextQuad)
+    Success("SA complete")
   }
 
   def action30(token: Token) = {
     val id = token.value
     val result = symbolTable().lookup(id)
-    result.map((res) => {
-      semanticStack.push(res)
-      semanticStack.push(ARITHMETIC)
-    })
-    if (result.isEmpty) errors += UndeclaredVariable("Identifier " + id +" used before declaration")
+    result match {
+      case Some(res) => {
+        semanticStack.push(res)
+        semanticStack.push(ARITHMETIC)
+        Success("SA complete")
+      }
+      case _ => Failure(UndeclaredVariable("Identifier " + id +" used before declaration"))
+    }
   }
 
   def action31(token: Token) = {
-    val eType = semanticStack.pop()
-    val id1 = semanticStack.popT[DataEntry]()
-    val offset = semanticStack.pop()
-    val eType2 = semanticStack.pop()
-    val id2 = semanticStack.popT[DataEntry]()
+    val eType = semanticStack.popT[ETYPE]()
     if (eType != ARITHMETIC) {
-      errors += GenericSemanticError("Error at "+ token)
-    }
-    val check = typeCheck(id1, id2)
-    if (check == 3) {
-      errors += GenericSemanticError("Error at "+ token)
-    }
-    if (check == 2) {
-      val tmp = create(DTYPE.real)
-      gen("ltof", tmp, id2)
-      if (offset == null) {
-        gen("move", id1, tmp)
-      } else {
-        gen("stor", id1, offset, tmp)
-      }
-    } else if (offset == null) {
-      gen("move", id1, id2)
+      Failure(GenericSemanticError("Error at "+ token))
     } else {
-      gen("stor", id2, offset, id1)
+      val id1 = semanticStack.popT[DataEntry]()
+      val offset = semanticStack.pop()
+      val eType2 = semanticStack.popT[ETYPE]()
+      val id2 = semanticStack.popT[DataEntry]()
+      val check = typeCheck(id1, id2)
+      if (check == 3) {
+        Failure(GenericSemanticError("Error at "+ token))
+      } else {
+        if (check == 2) {
+          val tmp = create(DTYPE.real)
+          gen("ltof", tmp, id2)
+          if (offset == null) {
+            gen("move", id1, tmp)
+          } else {
+            gen("stor", id1, offset, tmp)
+          }
+        } else if (offset == null) {
+          gen("move", id1, id2)
+        } else {
+          gen("stor", id2, offset, id1)
+        }
+        Success("SA complete")
+      }
     }
   }
-  //not complete
-/*
+
+  def action32(token: Token) = {
+    val entry = symbolTable().lookup(token.value)
+    entry match {
+      case Some(a: ArrayEntry) => Success("SA complete")
+        //expected array ID
+      case _ => Failure(GenericSemanticError("Error at "+ token))
+    }
+  }
+
+
   def action33(token: Token) = {
-    val eType = semanticStack.pop()
+    val eType = semanticStack.popT[ETYPE]()
     if (eType != ARITHMETIC) {
-      errors += GenericSemanticError("Error at "+ token)
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      val id = semanticStack.headT[DataEntry]
+      if (id.dataType != DTYPE.integer) {
+        Failure(GenericSemanticError("Error at "+ token))
+      } else {
+        val tmp = create(DTYPE.integer)
+        val tmp1 = semanticStack.pop()
+        val arrayEntry = semanticStack.lastT[ArrayEntry]
+        gen("sub", tmp1, arrayEntry.lowerBound, tmp)
+        semanticStack.push(tmp)
+        Success("SA complete")
+      }
     }
-    val id = semanticStack.head
-    if (id.isInstanceOf[DataEntry] && id.dataType != DTYPE.integer) {
-      errors += GenericSemanticError("Error at "+ token)
-    }
-    val tmp = create(DTYPE.integer)
-    val arrayEntry = semanticStack.last
-    arrayEntry match {
-      case a: ArrayEntry => //gen("sub", tmp1, )
-    }
-    semanticStack.push(tmp)
-  }*/
+  }
 
   //not complete
   def action34() = {
     if (semanticStack.nonEmpty &&
       semanticStack.head.isInstanceOf[FunctionEntry]) {
       //action52()
+      Success("SA complete")
     } else {
       semanticStack.push(null)
+      Success("SA complete")
     }
   }
 
@@ -202,31 +304,84 @@ class SemanticActions {
     //symbolTable().lookup(id)
   }
 
-  def action42(token: Token) = {
-    val eType = semanticStack.pop()
+  def action38(token: Token) = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != ARITHMETIC) {
+      errors += GenericSemanticError("Error at "+ token)
+    }
+    semanticStack.push(token)
+    Success("SA complete")
+  }
+
+  def action39(token: Token) = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != ARITHMETIC) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      val id2 = semanticStack.popT[DataEntry]()
+      val relOp = semanticStack.popT[RELOP]()
+      val id1 = semanticStack.popT[DataEntry]()
+      val check = typeCheck(id1, id2)
+      if (check == 2) {
+        val tmp = create(DTYPE.real)
+        gen("ltof", id2, tmp)
+        gen(relOpCode(relOp), id1, tmp, "_")
+      } else if (check == 3) {
+        val tmp = create(DTYPE.real)
+        gen("ltof", id1, tmp)
+        gen(relOpCode(relOp), tmp, id2, "_")
+      } else {
+        gen(relOpCode(relOp), id1, id2, "_")
+      }
+      gen("goto", "_")
+      val eTrue = makeList(nextQuad - 2)
+      val eFalse = makeList(nextQuad - 1)
+      semanticStack.push(eTrue)
+      semanticStack.push(eFalse)
+      semanticStack.push(RELATIONAL)
+      Success("SA complete")
+    }
+  }
+
+  //not finished
+  def action42(token: Token): Try[String] = {
+    val eType = semanticStack.popT[ETYPE]()
     if (token == addOps.or) {
       if (eType != RELATIONAL) {
-        errors += GenericSemanticError("Error at "+ token)
+        return Failure(GenericSemanticError("Error at "+ token))
       }
-      val eFalse = semanticStack.popString()
-      println("action42: popping eFalse", eFalse)
-      backPatch(eFalse.toInt, nextQuad)
+      val eFalse = semanticStack.headT[List[Int]]()
+      backPatch(eFalse, nextQuad)
     } else if (eType == ARITHMETIC) {
 
     }
     semanticStack.push(token)
+    Success("SA complete")
   }
 
-  //incomplete relational action
-  def action43(token: Token) = {
-    val eType = semanticStack.pop()
-    val id1 = semanticStack.popT[DataEntry]()
-    val operator = semanticStack.pop()
-    val id2 = semanticStack.popT[DataEntry]()
-    val tCheck = typeCheck(id1, id2)
+  def action43(token: Token): Try[String] = {
+    val eType = semanticStack.popT[ETYPE]()
     if (eType == RELATIONAL) {
+      //not sure of order of popping, check when there's an example
+      val e2False = semanticStack.popT[List[Int]]()
+      val e2True = semanticStack.popT[List[Int]]()
+      val operator = semanticStack.popT[Token]()
+      val e1False = semanticStack.popT[List[Int]]()
+      val e1True = semanticStack.popT[List[Int]]()
+      if (operator == addOps.or) {
+        val eTrue = merge(e1True, e2True)
+        val eFalse = merge(e2False, e2False)
+        semanticStack.push(eTrue)
+        semanticStack.push(eFalse)
+        semanticStack.push(RELATIONAL)
+      }
     } else {
+      val id1 = semanticStack.popT[DataEntry]()
+      val operator = semanticStack.popT[Token]()
+      val id2 = semanticStack.popT[DataEntry]()
+      val tCheck = typeCheck(id1, id2)
       if (eType != ARITHMETIC) {
+        return Failure(GenericSemanticError("Error at "+ token))
       }
       tCheck match {
         case 0 => {
@@ -254,34 +409,50 @@ class SemanticActions {
           semanticStack.push(tmp2)
         }
       }
+      semanticStack.push(ARITHMETIC)
     }
-    semanticStack.push(ARITHMETIC)
+    Success("SA complete")
   }
 
   //incomplete relational action
   def action44(token: Token) = {
-    val eType = semanticStack.pop()
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType == RELATIONAL && token == mulOps.and) {
+      val eTrue = semanticStack.headT[List[Int]]()
+      backPatch(eTrue, nextQuad)
+    }
     semanticStack.push(token)
+    Success("SA complete")
   }
 
-  //incomplete relational action
-  def action45(token: Token) = {
-    val eType = semanticStack.pop()
-    val id1 = semanticStack.popT[DataEntry]()
-    val operator = semanticStack.pop()
-    val id2 = semanticStack.popT[DataEntry]()
-    val tCheck = typeCheck(id1, id2)
-    //incomplete AND
-    if (operator == mulOps.and) {
-      if (eType != RELATIONAL) {
-        errors += GenericSemanticError("Error at "+ token)
+  //check order of popping
+  def action45(token: Token): Try[String] = {
+    val eType = semanticStack.popT[ETYPE]()
+    //check false/true order
+    if (eType == RELATIONAL) {
+      val e2False = semanticStack.popT[List[Int]]()
+      val e2True = semanticStack.popT[List[Int]]()
+      val operator = semanticStack.popT[Token]()
+      if (operator != mulOps.and) {
+        return Failure(GenericSemanticError("Error at "+ token))
       }
+      val e1False = semanticStack.popT[List[Int]]()
+      val e1True = semanticStack.popT[List[Int]]()
+      val eTrue = e2True
+      val eFalse = merge(e1False, e2False)
+      semanticStack.push(eTrue)
+      semanticStack.push(eFalse)
+      semanticStack.push(RELATIONAL)
     } else {
+      val id2 = semanticStack.popT[DataEntry]()
+      val operator = semanticStack.pop()
+      val id1 = semanticStack.popT[DataEntry]()
+      val tCheck = typeCheck(id1, id2)
       if (eType != ARITHMETIC) {
-        errors += GenericSemanticError("Error at "+ token)
+        return Failure(GenericSemanticError("Error at "+ token))
       }
       if ((typeCheck(id1, id2) != 0) && (operator == mulOps.mod)) {
-        errors += GenericSemanticError("Error at "+ token)
+        return Failure(GenericSemanticError("Error at "+ token))
       }
       tCheck match {
         case 0 => {
@@ -355,18 +526,19 @@ class SemanticActions {
         }
         case _ =>
       }
+      semanticStack.push(ARITHMETIC)
     }
-    semanticStack.push(ARITHMETIC)
+    Success("SA complete")
   }
 
-  def action46(token: Token) = {
+  def action46(token: Token): Try[String] = {
     val id = token.value
     if (token.isInstanceOf[IDENTIFIER]) {
       val result = symbolTable().lookup(id)
       result.map((res) => {
         semanticStack.push(res)
       })
-      if (result.isEmpty) errors += UndeclaredVariable("Identifier " + id +" used before declaration")
+      if (result.isEmpty) return Failure(UndeclaredVariable("Identifier " + id +" used before declaration"))
     } else {
       token match {
         case t: CONSTANT => {
@@ -384,82 +556,122 @@ class SemanticActions {
       }
     }
     semanticStack.push(ARITHMETIC)
+    Success("SA complete")
   }
 
-  def action48() = {
+  def action47(token: Token): Try[String] = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != RELATIONAL) {
+      return Failure(GenericSemanticError("Error at "+ token))
+    }
+    val eFalse = semanticStack.popT[List[Int]]()
+    val eTrue = semanticStack.popT[List[Int]]()
+    //swap True and False
+    semanticStack.push(eFalse)
+    semanticStack.push(eTrue)
+    semanticStack.push(RELATIONAL)
+    Success("SA complete")
+  }
+
+  def action48(token: Token): Try[String] = {
     if (semanticStack.head != null) {
-      semanticStack.head match {
-        case i: Integer => {
-          val offset = semanticStack.pop()
-          val eType = semanticStack.pop()
-          val id = semanticStack.pop()
-          id match {
-            case entry: SymbolTableEntry with DataEntry => {
-              val tmpEntry = create(entry.dataType)
-              gen("load", entry.name, offset, tmpEntry)
-              semanticStack.push(tmpEntry)
-              semanticStack.push(ARITHMETIC)
-            }
-          }
-        }
-        case _ => errors += GenericSemanticError("")
-      }
+      val offset = semanticStack.pop()
+      if (!offset.isInstanceOf[Integer]) return Failure(GenericSemanticError("Error at "+ token))
+      val eType = semanticStack.popT[ETYPE]()
+      val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
+      val tmpEntry = create(id.dataType)
+      gen("load", id.name, offset, tmpEntry)
+      semanticStack.push(tmpEntry)
+      semanticStack.push(ARITHMETIC)
+      Success("SA complete")
     } else {
       semanticStack.pop()
+      Success("SA complete")
     }
   }
 
 
-  //not finished
-/*  def action53(token: Token) = {
-    if (semanticStack.head.isInstanceOf[FunctionEntry]){
-
+  def action53(token: Token): Try[String] = {
+    val entry = symbolTable().lookup(token.value)
+    entry match {
+      case Some(e: FunctionEntry) => {
+        val eType = semanticStack.popT[ETYPE]()
+        val id = semanticStack.popT[SymbolTableEntry]
+        if (id != currentFunction) {
+          //non-matching functions
+          return Failure(GenericSemanticError("Error at "+ token))
+        }
+        semanticStack.push(e.result)
+        semanticStack.push(ARITHMETIC)
+        Success("SA complete")
+      }
+      case _ => Success("SA complete")
     }
   }
 
-  def action52() = {
-
-  }*/
+  def action54(token: Token) = {
+    val entry = symbolTable().lookup(token.value)
+    entry match {
+      case Some(a: ProcedureEntry) => Success("SA complete")
+      //expected array ID
+      case _ => Failure(GenericSemanticError("Error at "+ token))
+    }
+  }
 
   def action55() = {
     gen("free", globalMemory)
-    backPatch(globalStore, globalMemory)
+    backPatch(List(globalStore), globalMemory)
     gen("PROCEND")
+    Success("SA complete")
   }
 
   def action56() = {
     gen("PROCBEGIN", "main")
     globalStore = nextQuad
-    gen("alloc", "")
+    gen("alloc", "_")
+    Success("SA complete")
   }
 
-  def execute(action: SemanticAction, token: Token) = {
+  def execute(action: SemanticAction, token: Token): Try[String] = {
     println(action)
     println(semanticStack)
     println(token)
     action match {
-      case Action1 => insert = true
-      case Action2 => insert = false
+      case Action1 => insert = true; Success("SA complete")
+      case Action2 => insert = false; Success("SA complete")
       case Action3 => action3(token)
-      case Action4 => semanticStack.push(token)
-      case Action6 => isArray = true
-      case Action7 => semanticStack.push(token)
+      case Action4 => semanticStack.push(token); Success("SA complete")
+      case Action6 => isArray = true; Success("SA complete")
+      case Action7 => semanticStack.push(token); Success("SA complete")
       case Action9 => action9(token)
-      case Action13 => semanticStack.push(token)
+      case Action13 => semanticStack.push(token); Success("SA complete")
+      case Action22 => action22(token)
+      case Action24 => action24(token)
+      case Action25 => action25(token)
+      case Action26 => action26(token)
+      case Action27 => action27(token)
+      case Action28 => action28(token)
+      case Action29 => action29(token)
       case Action30 => action30(token)
       case Action31 => action31(token)
+      case Action32 => action32(token)
+      case Action33 => action33(token)
       case Action34 => action34()
-      case Action40 => semanticStack.push(token)
+      case Action38 => action38(token)
+      case Action39 => action39(token)
+      case Action40 => semanticStack.push(token); Success("SA complete")
       case Action42 => action42(token)
       case Action43 => action43(token)
       case Action44 => action44(token)
       case Action45 => action45(token)
       case Action46 => action46(token)
-      case Action48 => action48()
-      //case Action53 => action53(token)
+      case Action47 => action47(token)
+      case Action48 => action48(token)
+      case Action53 => action53(token)
+      case Action54 => action54(token)
       case Action55 => action55()
       case Action56 => action56()
-      case _ => println("action not yet implemented")
+      case _ => println("action not yet implemented"); Success("SA complete")
     }
   }
 
@@ -493,15 +705,36 @@ class SemanticActions {
 
   def processArgument(a: Any) = {
     a match {
-      case v: VariableEntry => genOffset(v.address)
+      case a: Address => genOffset(a.address)
       case c: ConstantEntry => c.name
       case _ => a.toString
     }
   }
 
-  def backPatch(previous: Int, target: Int) = {
-    val amended = quadruples(previous).copy(arg1 = target.toString)
-    quadruples.update(previous, amended)
+  def makeList(i: Int): List[Int] = {
+    List(i)
+  }
+
+  def merge(p1: List[Int], p2: List[Int]): List[Int] = {
+    p1 ::: p2
+  }
+
+  def backPatch(previousList: List[Int], target: Int) = {
+    println("backpatching")
+    println("prev " + previousList + "target " + target)
+    def replaceTarget(p: Quadruple) = {
+      if (p.arg2.isEmpty) {
+        p.copy(arg1 = target.toString)
+      } else if (p.arg3.isEmpty) {
+        p.copy(arg2 = target.toString)
+      } else {
+        p.copy(arg3 = target.toString)
+      }
+    }
+    previousList.foreach( previous => {
+      val amended = replaceTarget(quadruples(previous))
+      quadruples.update(previous, amended)
+    })
   }
 
   def typeCheck(id1: DataEntry, id2: DataEntry): Int = {

@@ -18,19 +18,21 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   //() -> List[Try[String]]
   def parse() = {
     var results : ListBuffer[Try[String]] = new ListBuffer()
+    var valid = true
 
-    while(stack.length > 0) {
+    while(stack.length > 0 && valid) {
       val result: Try[String] = stack.head match {
         case t: Token => terminalMatch(t)
         case nt: NonTerminal => parseTableLookUp(current, nt)
         case a: SemanticAction => {
           stack.pop()
           semanticActions.execute(a, last)
-          Success("SA Matched")
         }
       }
-
-      results += result
+      if (result.isFailure) {
+        println(result)
+        //valid = false
+      }
     }
     println("Quadruples")
     semanticActions.quadruples.foreach(println(_))
