@@ -2,6 +2,8 @@ package compiler
 
 trait GrammarSymbol
 
+trait DataType
+
 abstract class Token(val value: String, val index: Int) extends GrammarSymbol
 
 abstract class Keyword(value: String, index: Int) extends Token(value, index)
@@ -16,8 +18,16 @@ case object VAR extends Keyword("VAR", 3)
 case object FUNCTION extends Keyword("FUNCTION", 4)
 case object PROCEDURE extends Keyword("PROCEDURE", 5)
 case object RESULT extends Keyword("RESULT", 6)
-case object INTEGER extends Keyword("INTEGER", 7)
-case object REAL extends Keyword("REAL", 8)
+case object INTEGER extends Keyword("INTEGER", 7) with DataType {
+  override def toString() = {
+    "integer"
+  }
+}
+case object REAL extends Keyword("REAL", 8) with DataType{
+  override def toString() = {
+    "real"
+  }
+}
 case object ARRAYTOKEN extends Keyword("ARRAY", 9)
 case object OF extends Keyword("OF", 10)
 case object IF extends Keyword("IF", 11)

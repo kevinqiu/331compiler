@@ -16,14 +16,19 @@ trait Address {
   val address: Int
 }
 
+trait Params {
+  val numberOfParameters: Int
+  val parameterInfo: List[SymbolTableEntry with DataEntry]
+}
+
 
 case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry with DataEntry with Address
 
 case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry with DataEntry
 
-case class FunctionEntry(name: String, numberOfParameters: Int, parameterInfo: Int, result: String) extends SymbolTableEntry
+case class FunctionEntry(name: String, numberOfParameters: Int, parameterInfo: List[SymbolTableEntry with DataEntry], result: String, dataType: String) extends SymbolTableEntry with DataEntry with Params
 
-case class ProcedureEntry(name: String, numberOfParameters: Int, parameterInfo: Int) extends SymbolTableEntry
+case class ProcedureEntry(name: String, numberOfParameters: Int, parameterInfo: List[SymbolTableEntry with DataEntry]) extends SymbolTableEntry with Params
 
 case class VariableEntry(name: String, address: Int, dataType: String) extends SymbolTableEntry with DataEntry with Address
 

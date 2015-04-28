@@ -56,9 +56,8 @@ class SemanticActions {
   var constantTable = new SymbolTable
   var localTable = new SymbolTable
   var quadruples = new ListBuffer[Quadruple]()
-  var errors = new ListBuffer[CompilerError]
   var parmCount = new Stack[Int]()
-  var nextParm = new Stack[SymbolTableEntry]()
+  var nextParm = new Stack[List[SymbolTableEntry with DataEntry]]()
   var skipElse = List[Int]()
   var insert = true
   var isArray = false
@@ -68,8 +67,11 @@ class SemanticActions {
   var globalStore = 0
   var localStore = 0
   var nextQuad = 1
-  var currentFunction = FunctionEntry("", 0, 0, "")
+  var currentFunction = FunctionEntry("", 0, List(), "", "")
   var tmp = 0
+
+  globalTable.insert(ProcedureEntry("write", 0, List[SymbolTableEntry with DataEntry]()))
+  globalTable.insert(ProcedureEntry("read", 0, List[SymbolTableEntry with DataEntry]()))
 
   quadruples += Quadruple("CODE")
 
@@ -136,8 +138,20 @@ class SemanticActions {
         }
       }
     }
-
     isArray = false
+    Success("SA complete")
+  }
+
+  def action5(token: Token) = {
+    insert = false
+    val entry = semanticStack.pop()
+    val id = entry match {
+      case i: IDENTIFIER => i.value
+      case s: SymbolTableEntry => s.name
+    }
+    gen("PROCBEGIN", id)
+    localStore = nextQuad
+    gen("alloc", "_")
     Success("SA complete")
   }
 
@@ -150,6 +164,102 @@ class SemanticActions {
     insert = false
     gen("call", "main", 0)
     gen("exit")
+    Success("SA complete")
+  }
+
+  def action11(token: Token) = {
+    global = true
+    currentFunction = FunctionEntry("", 0, List(), "", "")
+    gen("free", localMemory)
+    gen("PROCEND")
+    backPatch(List(localStore), localMemory)
+    Success("SA complete")
+  }
+
+  //not complete, go over
+  def action15(token: Token) = {
+    val name = token.value
+    val result = create(DTYPE.integer)
+    val fEntry = FunctionEntry(name, 0, List(), result.name, "")
+    globalTable.insert(fEntry)
+    localTable.insert(fEntry)
+    localMemory = 0
+    global = false
+    semanticStack.push(fEntry)
+    Success("SA complete")
+  }
+
+  def action16(token: Token) = {
+    val eType = semanticStack.popT[DataType]().toString
+    val entry = semanticStack.popT[SymbolTableEntry]()
+    val newEntry = globalTable(entry.name) match {
+      case f: FunctionEntry => f.copy(dataType = eType)
+    }
+    val newResult = globalTable(newEntry.result) match {
+      case v: VariableEntry => v.copy(dataType = eType)
+    }
+    currentFunction = newEntry
+    globalTable.insert(newEntry)
+    globalTable.insert(newResult)
+    semanticStack.push(newEntry)
+    Success("SA complete")
+  }
+
+  def action17(token: Token) = {
+    val name = token.value
+    val pEntry = ProcedureEntry(name, 0, List())
+    symbolTable().insert(pEntry)
+    global = false
+    localMemory = 0
+    semanticStack.push(pEntry)
+    Success("SA complete")
+  }
+
+  def action19(token: Token) = {
+    parmCount.push(0)
+    Success("SA complete")
+  }
+
+  def action20(token: Token) = {
+    val parms = parmCount.pop()
+    val entry = semanticStack.popT[SymbolTableEntry]()
+    val newEntry = globalTable(entry.name) match {
+      case p: ProcedureEntry => p.copy(numberOfParameters = parms)
+      case f: FunctionEntry => f.copy(numberOfParameters = parms)
+    }
+    globalTable.insert(newEntry)
+    semanticStack.push(newEntry)
+    Success("SA complete")
+  }
+
+  //not complete
+  def action21(token: Token) = {
+    val iType = semanticStack.popT[Token]()
+    var params = ListBuffer[SymbolTableEntry with DataEntry]()
+    while (semanticStack.nonEmpty &&
+      !semanticStack.head.isInstanceOf[SymbolTableEntry with Params]) {
+      val entry = if (isArray) {
+        val ub = semanticStack.popT[Token with CONSTANT]().value.toInt
+        val lb = semanticStack.popT[Token with CONSTANT]().value.toInt
+        val id = semanticStack.popT[IDENTIFIER]()
+        ArrayEntry(id.value, localMemory, iType.toString, ub, lb)
+      } else {
+        val id = semanticStack.popT[IDENTIFIER]()
+        VariableEntry(id.value, localMemory, iType.toString)
+      }
+      symbolTable().insert(entry)
+      entry +=: params
+      localMemory = localMemory + 1
+      parmCount.push(parmCount.pop() + 1)
+    }
+    val procedure = semanticStack.popT[SymbolTableEntry]()
+    val newEntry = globalTable(procedure.name) match {
+      case p: ProcedureEntry => p.copy(parameterInfo = (p.parameterInfo ++ params).toList)
+      case f: FunctionEntry => f.copy(parameterInfo = (f.parameterInfo ++ params).toList)
+    }
+    globalTable.insert(newEntry)
+    semanticStack.push(newEntry)
+    isArray = false
     Success("SA complete")
   }
 
@@ -214,6 +324,7 @@ class SemanticActions {
   }
 
   def action30(token: Token) = {
+    println(global)
     val id = token.value
     val result = symbolTable().lookup(id)
     result match {
@@ -267,7 +378,7 @@ class SemanticActions {
   }
 
 
-  def action33(token: Token) = {
+  def action33(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
     if (eType != ARITHMETIC) {
       Failure(GenericSemanticError("Error at "+ token))
@@ -278,7 +389,10 @@ class SemanticActions {
       } else {
         val tmp = create(DTYPE.integer)
         val tmp1 = semanticStack.pop()
-        val arrayEntry = semanticStack.lastT[ArrayEntry]
+        val arrayEntry = semanticStack.find(_.isInstanceOf[ArrayEntry]) match {
+          case Some(a: ArrayEntry) => a
+          case _ => return Failure(GenericSemanticError("Error at "+ token))
+        }
         gen("sub", tmp1, arrayEntry.lowerBound, tmp)
         semanticStack.push(tmp)
         Success("SA complete")
@@ -287,10 +401,10 @@ class SemanticActions {
   }
 
   //not complete
-  def action34() = {
+  def action34(token: Token) = {
     if (semanticStack.nonEmpty &&
       semanticStack.head.isInstanceOf[FunctionEntry]) {
-      //action52()
+      action52(token)
       Success("SA complete")
     } else {
       semanticStack.push(null)
@@ -298,16 +412,62 @@ class SemanticActions {
     }
   }
 
-  //not complete
   def action35(token: Token) = {
     parmCount.push(0)
-    //symbolTable().lookup(id)
+    val parmInfo = globalTable.lookup(token.value).head match {
+      case p: ProcedureEntry => p.parameterInfo
+    }
+    nextParm.push(parmInfo)
+    Success("SA complete")
+  }
+
+  def action36(token: Token) = {
+    val eType = semanticStack.pop()
+    val id = semanticStack.popT[SymbolTableEntry with Params]()
+    if (id.numberOfParameters != 0) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      gen("call", id.name, 0)
+      Success("SA complete")
+    }
+  }
+
+  //not finished, check for variable, constant, ect. not implemented
+  //array param not implemented
+  def action37(token: Token): Try[String] = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != ARITHMETIC) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else if (false) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      parmCount.push(parmCount.pop() + 1)
+      val pc = parmCount.head
+      val procOrFun = semanticStack.find(_.isInstanceOf[SymbolTableEntry with Params]) match {
+        case Some(pf: SymbolTableEntry with Params) => pf
+        case _ => return Failure(GenericSemanticError("Error at "+ token))
+      }
+      if (procOrFun.name != "read" && procOrFun.name != "write") {
+        val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
+        val next = nextParm.pop()
+        if (pc > procOrFun.numberOfParameters) {
+          Failure(GenericSemanticError("Error at "+ token))
+        } else if (id.dataType != next.head.dataType) {
+          Failure(GenericSemanticError("Error at "+ token))
+        } else {
+          nextParm.push(next.tail)
+          Success("SA complete")
+        }
+      } else {
+        Success("SA complete")
+      }
+    }
   }
 
   def action38(token: Token) = {
     val eType = semanticStack.popT[ETYPE]()
     if (eType != ARITHMETIC) {
-      errors += GenericSemanticError("Error at "+ token)
+      Failure(GenericSemanticError("Error at "+ token))
     }
     semanticStack.push(token)
     Success("SA complete")
@@ -575,12 +735,13 @@ class SemanticActions {
 
   def action48(token: Token): Try[String] = {
     if (semanticStack.head != null) {
-      val offset = semanticStack.pop()
-      if (!offset.isInstanceOf[Integer]) return Failure(GenericSemanticError("Error at "+ token))
+      val offset = semanticStack.popT[SymbolTableEntry with DataEntry]()
+      println(offset.dataType)
+      if (offset.dataType != DTYPE.integer) return Failure(GenericSemanticError("Error at "+ token))
       val eType = semanticStack.popT[ETYPE]()
       val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
       val tmpEntry = create(id.dataType)
-      gen("load", id.name, offset, tmpEntry)
+      gen("load", id, offset, tmpEntry)
       semanticStack.push(tmpEntry)
       semanticStack.push(ARITHMETIC)
       Success("SA complete")
@@ -590,6 +751,130 @@ class SemanticActions {
     }
   }
 
+  def action49(token: Token): Try[String] = {
+    val eType = semanticStack.head
+    val id = globalTable.lookup(token.value).head
+    if (!id.isInstanceOf[Params]) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      parmCount.push(0)
+      val np = id match {
+        case func: Params => func.parameterInfo
+      }
+      nextParm.push(np)
+      Success("SA complete")
+    }
+  }
+
+  def action50(token: Token) = {
+    var params = new ListBuffer[VariableEntry]()
+    while (semanticStack(1).isInstanceOf[VariableEntry]) {
+      val eType = semanticStack.pop()
+      val id = semanticStack.popT[VariableEntry]()
+      localMemory = localMemory + 1
+      params += id
+    }
+    params.foreach(id => gen("param", id.name))
+    val pc = parmCount.pop()
+    val np = nextParm.pop()
+    val eType = semanticStack.pop()
+    val func = semanticStack.popT[FunctionEntry]()
+    if (pc > func.numberOfParameters) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      gen("call", func.name, pc)
+      val tmp = create(func.dataType)
+      gen("move", func, tmp)
+      semanticStack.push(tmp)
+      semanticStack.push(ARITHMETIC)
+      Success("SA complete")
+    }
+  }
+
+  def action51() = {
+    val proc = semanticStack.find(_.isInstanceOf[ProcedureEntry]) match {
+      case Some(p: ProcedureEntry) => p
+    }
+    if (proc.name == "read") {
+      action51Read()
+    } else if (proc.name == "write") {
+      action51Write()
+    } else {
+      var params = new ListBuffer[SymbolTableEntry with Address]()
+      while (semanticStack.head.isInstanceOf[SymbolTableEntry with Address]) {
+        val id = semanticStack.popT[SymbolTableEntry with Address]()
+        localMemory = localMemory + 1
+        params += id
+      }
+      params.foreach(id => gen("param", id.name))
+      val pc = parmCount.pop()
+      val np = nextParm.pop()
+      val eType = semanticStack.pop()
+      //pop id, but we already have it above since we had to determine in advance
+      //if it is read/wrtie
+      semanticStack.pop()
+      gen("call", proc.name, pc)
+    }
+    Success("SA complete")
+  }
+
+  def action51Write() = {
+    var params = new ListBuffer[SymbolTableEntry with Address with DataEntry]()
+    while (semanticStack.head.isInstanceOf[SymbolTableEntry with Address with DataEntry]) {
+      val id = semanticStack.popT[SymbolTableEntry with Address with DataEntry]()
+      params += id
+    }
+    params.foreach(id => {
+      gen("print", "<"+id.name+ "> = ")
+      if (id.dataType == DTYPE.real) {
+        gen("foutp", id)
+      } else {
+        gen("outp", id)
+      }
+      gen("newl")
+    })
+    val eType = semanticStack.pop()
+    val id = semanticStack.pop()
+    val pc = parmCount.pop()
+    Success("SA complete")
+  }
+
+  def action51Read() = {
+    var params = new ListBuffer[SymbolTableEntry with Address with DataEntry]()
+    while (semanticStack.head.isInstanceOf[SymbolTableEntry with Address with DataEntry]) {
+      val id = semanticStack.popT[SymbolTableEntry with Address with DataEntry]()
+      params += id
+    }
+    params.foreach(id => {
+      if (id.dataType == DTYPE.real) {
+        gen("finp", id)
+      } else {
+        gen("inp", id)
+      }
+    })
+    val eType = semanticStack.pop()
+    val id = semanticStack.pop()
+    val pc = parmCount.pop()
+    Success("SA complete")
+  }
+
+  def action52(token: Token): Try[String] = {
+    val eType = semanticStack.pop()
+    val func = semanticStack.pop() match {
+      case f: FunctionEntry => f
+      case _ => return Failure(GenericSemanticError("Error at "+ token))
+    }
+    if (func.numberOfParameters > 0) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      gen("call", func.name, 0)
+      val tmp = create(func.dataType)
+      gen("move", func.result, tmp)
+      semanticStack.push(tmp)
+      semanticStack.push(ARITHMETIC)
+      Success("SA complete")
+    }
+  }
 
   def action53(token: Token): Try[String] = {
     val entry = symbolTable().lookup(token.value)
@@ -597,11 +882,11 @@ class SemanticActions {
       case Some(e: FunctionEntry) => {
         val eType = semanticStack.popT[ETYPE]()
         val id = semanticStack.popT[SymbolTableEntry]
-        if (id != currentFunction) {
+        if (id.name != currentFunction.name) {
           //non-matching functions
           return Failure(GenericSemanticError("Error at "+ token))
         }
-        semanticStack.push(e.result)
+        semanticStack.push(globalTable.lookup(e.result).head)
         semanticStack.push(ARITHMETIC)
         Success("SA complete")
       }
@@ -641,10 +926,18 @@ class SemanticActions {
       case Action2 => insert = false; Success("SA complete")
       case Action3 => action3(token)
       case Action4 => semanticStack.push(token); Success("SA complete")
+      case Action5 => action5(token)
       case Action6 => isArray = true; Success("SA complete")
       case Action7 => semanticStack.push(token); Success("SA complete")
       case Action9 => action9(token)
+      case Action11 => action11(token)
       case Action13 => semanticStack.push(token); Success("SA complete")
+      case Action15 => action15(token)
+      case Action16 => action16(token)
+      case Action17 => action17(token)
+      case Action19 => action19(token)
+      case Action20 => action20(token)
+      case Action21 => action21(token)
       case Action22 => action22(token)
       case Action24 => action24(token)
       case Action25 => action25(token)
@@ -656,7 +949,10 @@ class SemanticActions {
       case Action31 => action31(token)
       case Action32 => action32(token)
       case Action33 => action33(token)
-      case Action34 => action34()
+      case Action34 => action34(token)
+      case Action35 => action35(token)
+      case Action36 => action36(token)
+      case Action37 => action37(token)
       case Action38 => action38(token)
       case Action39 => action39(token)
       case Action40 => semanticStack.push(token); Success("SA complete")
@@ -667,6 +963,10 @@ class SemanticActions {
       case Action46 => action46(token)
       case Action47 => action47(token)
       case Action48 => action48(token)
+      case Action49 => action49(token)
+      case Action50 => action50(token)
+      case Action51 => action51()
+      case Action52 => action52(token)
       case Action53 => action53(token)
       case Action54 => action54(token)
       case Action55 => action55()
@@ -707,6 +1007,8 @@ class SemanticActions {
     a match {
       case a: Address => genOffset(a.address)
       case c: ConstantEntry => c.name
+      case f: FunctionEntry => globalTable.lookup(f.result).head match {
+        case t: Address => genOffset(t.address) }
       case _ => a.toString
     }
   }
