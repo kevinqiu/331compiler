@@ -6,10 +6,19 @@ CODE
 4:   move 3 _1
 5:   mul _1 4 _-3
 6:   move _-3 _0
-7:   add _1 _0 _-4
+7:   add _0 _1 _-4
 8:   ltof _-4 _-5
 9:   ltof 2 _-6
-10:   fdiv _-6 _-5 _-7
+10:   fdiv _-5 _-6 _-7
 11:   move _-7 _2
-12:   free 8
-13:   PROCEND
+12:   print <c> =
+13:   foutp _2
+14:   newl
+15:   print <b> =
+16:   outp _0
+17:   newl
+18:   print <a> =
+19:   outp _1
+20:   newl
+21:   free 8
+22:   PROCEND

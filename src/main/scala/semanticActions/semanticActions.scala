@@ -342,24 +342,24 @@ class SemanticActions {
     if (eType != ARITHMETIC) {
       Failure(GenericSemanticError("Error at "+ token))
     } else {
-      val id1 = semanticStack.popT[DataEntry]()
+      val id2 = semanticStack.popT[DataEntry]()
       val offset = semanticStack.pop()
       val eType2 = semanticStack.popT[ETYPE]()
-      val id2 = semanticStack.popT[DataEntry]()
+      val id1 = semanticStack.popT[DataEntry]()
       val check = typeCheck(id1, id2)
       if (check == 3) {
         Failure(GenericSemanticError("Error at "+ token))
       } else {
         if (check == 2) {
           val tmp = create(DTYPE.real)
-          gen("ltof", tmp, id2)
+          gen("ltof", id2, tmp)
           if (offset == null) {
-            gen("move", id1, tmp)
+            gen("move", tmp, id1)
           } else {
-            gen("stor", id1, offset, tmp)
+            gen("stor", tmp, offset, id1)
           }
         } else if (offset == null) {
-          gen("move", id1, id2)
+          gen("move", id2, id1)
         } else {
           gen("stor", id2, offset, id1)
         }
@@ -536,9 +536,9 @@ class SemanticActions {
         semanticStack.push(RELATIONAL)
       }
     } else {
-      val id1 = semanticStack.popT[DataEntry]()
-      val operator = semanticStack.popT[Token]()
       val id2 = semanticStack.popT[DataEntry]()
+      val operator = semanticStack.popT[Token]()
+      val id1 = semanticStack.popT[DataEntry]()
       val tCheck = typeCheck(id1, id2)
       if (eType != ARITHMETIC) {
         return Failure(GenericSemanticError("Error at "+ token))
@@ -630,7 +630,7 @@ class SemanticActions {
             val tmp2 = create(DTYPE.real)
             gen("ltof", id2, tmp2)
             val tmp3 = create(DTYPE.real)
-            gen("fdiv", tmp2, tmp1, tmp3)
+            gen("fdiv", tmp1, tmp2, tmp3)
             semanticStack.push(tmp3)
           } else {
             val tmp = create(DTYPE.integer)
