@@ -1071,6 +1071,13 @@ class SemanticActions {
     }
   }
 
+  def getTvi(): String = {
+    val body = quadruples.tail.foldLeft((0, "")){case ((index, output), quad) => {
+      (index + 1, output + "\n" + index + ":   " + quad.toString)
+    }}._2
+    quadruples.head.toString + body
+  }
+
   def semanticStackDump() = {
     println("Contents of semantic stack")
     semanticStack.foreach(println(_))

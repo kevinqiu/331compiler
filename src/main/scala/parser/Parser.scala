@@ -16,7 +16,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
   var semanticActions = new SemanticActions
 
   //() -> List[Try[String]]
-  def parse() = {
+  def parse(): String = {
     var results : ListBuffer[Try[String]] = new ListBuffer()
     var valid = true
 
@@ -37,6 +37,7 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
     println("Quadruples")
     semanticActions.quadruples.foreach(println(_))
     results.toList
+    semanticActions.getTvi()
   }
 
   def terminalMatch(t: Token) = {

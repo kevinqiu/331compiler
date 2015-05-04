@@ -6,12 +6,7 @@ object ParseDriver {
     var stream = new CharStream(file)
     val la = new LexicalAnalyzer(stream)
     val parser = new Parser(la)
-    val failed = parser.parse().filter(_.isFailure)
-    if (failed.isEmpty) {
-      println("Parse Successful")
-    } else {
-      println("Errors encountered")
-      failed.foreach(println(_))
-    }
+    val tvi = parser.parse()
+    tvi
   }
 }
