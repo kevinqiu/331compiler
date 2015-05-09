@@ -46,7 +46,17 @@ case object RELATIONAL extends ETYPE
 
 case class Quadruple(opCode: String, arg1: String = "", arg2: String = "", arg3: String = "") {
   override def toString() = {
-    (opCode + " " + arg1 + " " + arg2 + " " + arg3).trim
+    def printArg(arg: String) = {
+      if (arg.nonEmpty) {
+        arg + ","
+      } else {
+        ""
+      }
+    }
+    val raw = opCode match {
+      case _ => (opCode + " " + printArg(arg1) + " " + printArg(arg2) + " " + arg3).trim
+    }
+    if (raw.last == ',') raw.init else raw
   }
 }
 
@@ -182,7 +192,6 @@ class SemanticActions {
     val result = create(DTYPE.integer)
     val fEntry = FunctionEntry(name, 0, List(), result.name, "")
     globalTable.insert(fEntry)
-    localTable.insert(fEntry)
     localMemory = 0
     global = false
     semanticStack.push(fEntry)
@@ -192,11 +201,11 @@ class SemanticActions {
   def action16(token: Token) = {
     val eType = semanticStack.popT[DataType]().toString
     val entry = semanticStack.popT[SymbolTableEntry]()
-    val newEntry = globalTable(entry.name) match {
-      case f: FunctionEntry => f.copy(dataType = eType)
+    val newEntry = globalTable.lookup(entry.name) match {
+      case Some(f: FunctionEntry) => f.copy(dataType = eType)
     }
-    val newResult = globalTable(newEntry.result) match {
-      case v: VariableEntry => v.copy(dataType = eType)
+    val newResult = globalTable.lookup(newEntry.result) match {
+      case Some(v: VariableEntry) => v.copy(dataType = eType)
     }
     currentFunction = newEntry
     globalTable.insert(newEntry)
@@ -208,7 +217,7 @@ class SemanticActions {
   def action17(token: Token) = {
     val name = token.value
     val pEntry = ProcedureEntry(name, 0, List())
-    symbolTable().insert(pEntry)
+    globalTable.insert(pEntry)
     global = false
     localMemory = 0
     semanticStack.push(pEntry)
@@ -223,9 +232,9 @@ class SemanticActions {
   def action20(token: Token) = {
     val parms = parmCount.pop()
     val entry = semanticStack.popT[SymbolTableEntry]()
-    val newEntry = globalTable(entry.name) match {
-      case p: ProcedureEntry => p.copy(numberOfParameters = parms)
-      case f: FunctionEntry => f.copy(numberOfParameters = parms)
+    val newEntry = globalTable.lookup(entry.name) match {
+      case Some(p: ProcedureEntry) => p.copy(numberOfParameters = parms)
+      case Some(f: FunctionEntry) => f.copy(numberOfParameters = parms)
     }
     globalTable.insert(newEntry)
     semanticStack.push(newEntry)
@@ -253,9 +262,9 @@ class SemanticActions {
       parmCount.push(parmCount.pop() + 1)
     }
     val procedure = semanticStack.popT[SymbolTableEntry]()
-    val newEntry = globalTable(procedure.name) match {
-      case p: ProcedureEntry => p.copy(parameterInfo = (p.parameterInfo ++ params).toList)
-      case f: FunctionEntry => f.copy(parameterInfo = (f.parameterInfo ++ params).toList)
+    val newEntry = globalTable.lookup(procedure.name) match {
+      case Some(p: ProcedureEntry) => p.copy(parameterInfo = (p.parameterInfo ++ params).toList)
+      case Some(f: FunctionEntry) => f.copy(parameterInfo = (f.parameterInfo ++ params).toList)
     }
     globalTable.insert(newEntry)
     semanticStack.push(newEntry)
@@ -268,7 +277,12 @@ class SemanticActions {
     if (eType != RELATIONAL) {
       Failure(GenericSemanticError("Error at "+ token))
     } else {
-      backPatch(semanticStack.headT[List[Int]](), nextQuad)
+      //pop false to get to true
+      val eFalse = semanticStack.popT[List[Int]]()
+      val eTrue = semanticStack.headT[List[Int]]()
+      backPatch(eTrue, nextQuad)
+      //put false back
+      semanticStack.push(eFalse)
       Success("SA complete")
     }
   }
@@ -290,9 +304,9 @@ class SemanticActions {
   }
 
   def action26(token: Token) = {
-    val beginLoop = semanticStack.popT[Int]()
     val eFalse = semanticStack.popT[List[Int]]()
     val eTrue = semanticStack.popT[List[Int]]()
+    val beginLoop = semanticStack.popT[Integer]()
 
     gen("goto", beginLoop)
     backPatch(eFalse, nextQuad)
@@ -326,7 +340,7 @@ class SemanticActions {
   def action30(token: Token) = {
     println(global)
     val id = token.value
-    val result = symbolTable().lookup(id)
+    val result = lookup(id)
     result match {
       case Some(res) => {
         semanticStack.push(res)
@@ -369,7 +383,7 @@ class SemanticActions {
   }
 
   def action32(token: Token) = {
-    val entry = symbolTable().lookup(token.value)
+    val entry = lookup(token.value)
     entry match {
       case Some(a: ArrayEntry) => Success("SA complete")
         //expected array ID
@@ -414,8 +428,8 @@ class SemanticActions {
 
   def action35(token: Token) = {
     parmCount.push(0)
-    val parmInfo = globalTable.lookup(token.value).head match {
-      case p: ProcedureEntry => p.parameterInfo
+    val parmInfo = globalTable.lookup(token.value) match {
+      case Some(p: ProcedureEntry) => p.parameterInfo
     }
     nextParm.push(parmInfo)
     Success("SA complete")
@@ -448,7 +462,7 @@ class SemanticActions {
         case _ => return Failure(GenericSemanticError("Error at "+ token))
       }
       if (procOrFun.name != "read" && procOrFun.name != "write") {
-        val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
+        val id = semanticStack.headT[SymbolTableEntry with DataEntry]()
         val next = nextParm.pop()
         if (pc > procOrFun.numberOfParameters) {
           Failure(GenericSemanticError("Error at "+ token))
@@ -499,6 +513,25 @@ class SemanticActions {
       semanticStack.push(eTrue)
       semanticStack.push(eFalse)
       semanticStack.push(RELATIONAL)
+      Success("SA complete")
+    }
+  }
+
+  def action41(token: Token) = {
+    val eType = semanticStack.popT[ETYPE]()
+    if (eType != ARITHMETIC) {
+      Failure(GenericSemanticError("Error at "+ token))
+    } else {
+      val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
+      val sign = semanticStack.popT[Token]()
+      if (sign == UNARYMINUS) {
+        val tmp = create(id.dataType)
+        gen("uminus", id, tmp)
+        semanticStack.push(tmp)
+      } else {
+        semanticStack.push(id)
+      }
+      semanticStack.push(ARITHMETIC)
       Success("SA complete")
     }
   }
@@ -694,7 +727,7 @@ class SemanticActions {
   def action46(token: Token): Try[String] = {
     val id = token.value
     if (token.isInstanceOf[IDENTIFIER]) {
-      val result = symbolTable().lookup(id)
+      val result = lookup(id)
       result.map((res) => {
         semanticStack.push(res)
       })
@@ -736,7 +769,6 @@ class SemanticActions {
   def action48(token: Token): Try[String] = {
     if (semanticStack.head != null) {
       val offset = semanticStack.popT[SymbolTableEntry with DataEntry]()
-      println(offset.dataType)
       if (offset.dataType != DTYPE.integer) return Failure(GenericSemanticError("Error at "+ token))
       val eType = semanticStack.popT[ETYPE]()
       val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
@@ -768,12 +800,12 @@ class SemanticActions {
 
   def action50(token: Token) = {
     var params = new ListBuffer[VariableEntry]()
-    while (semanticStack(1).isInstanceOf[VariableEntry]) {
-      val eType = semanticStack.pop()
+    while (semanticStack.head.isInstanceOf[VariableEntry]) {
       val id = semanticStack.popT[VariableEntry]()
       localMemory = localMemory + 1
       params += id
     }
+    println("params" + params)
     params.foreach(id => gen("param", id.name))
     val pc = parmCount.pop()
     val np = nextParm.pop()
@@ -791,9 +823,10 @@ class SemanticActions {
     }
   }
 
-  def action51() = {
+  def action51(token: Token): Try[String] = {
     val proc = semanticStack.find(_.isInstanceOf[ProcedureEntry]) match {
       case Some(p: ProcedureEntry) => p
+      case _ => return Failure(GenericSemanticError("Error at "+ token))
     }
     if (proc.name == "read") {
       action51Read()
@@ -806,6 +839,7 @@ class SemanticActions {
         localMemory = localMemory + 1
         params += id
       }
+      println("params" + params)
       params.foreach(id => gen("param", id.name))
       val pc = parmCount.pop()
       val np = nextParm.pop()
@@ -819,13 +853,13 @@ class SemanticActions {
   }
 
   def action51Write() = {
-    var params = new ListBuffer[SymbolTableEntry with Address with DataEntry]()
-    while (semanticStack.head.isInstanceOf[SymbolTableEntry with Address with DataEntry]) {
-      val id = semanticStack.popT[SymbolTableEntry with Address with DataEntry]()
+    var params = new ListBuffer[SymbolTableEntry with DataEntry]()
+    while (semanticStack.head.isInstanceOf[SymbolTableEntry with DataEntry]) {
+      val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
       params += id
     }
     params.foreach(id => {
-      gen("print", "<"+id.name+ "> = ")
+      gen("print", "\"<"+id.name+ "> = \"")
       if (id.dataType == DTYPE.real) {
         gen("foutp", id)
       } else {
@@ -833,16 +867,16 @@ class SemanticActions {
       }
       gen("newl")
     })
-    val eType = semanticStack.pop()
+    val eType = semanticStack.popT[ETYPE]()
     val id = semanticStack.pop()
     val pc = parmCount.pop()
     Success("SA complete")
   }
 
   def action51Read() = {
-    var params = new ListBuffer[SymbolTableEntry with Address with DataEntry]()
-    while (semanticStack.head.isInstanceOf[SymbolTableEntry with Address with DataEntry]) {
-      val id = semanticStack.popT[SymbolTableEntry with Address with DataEntry]()
+    var params = new ListBuffer[SymbolTableEntry with DataEntry]()
+    while (semanticStack.head.isInstanceOf[SymbolTableEntry with DataEntry]) {
+      val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
       params += id
     }
     params.foreach(id => {
@@ -852,7 +886,7 @@ class SemanticActions {
         gen("inp", id)
       }
     })
-    val eType = semanticStack.pop()
+    val eType = semanticStack.popT[ETYPE]()
     val id = semanticStack.pop()
     val pc = parmCount.pop()
     Success("SA complete")
@@ -877,25 +911,26 @@ class SemanticActions {
   }
 
   def action53(token: Token): Try[String] = {
-    val entry = symbolTable().lookup(token.value)
+    val entry = lookup(token.value)
     entry match {
       case Some(e: FunctionEntry) => {
         val eType = semanticStack.popT[ETYPE]()
         val id = semanticStack.popT[SymbolTableEntry]
         if (id.name != currentFunction.name) {
           //non-matching functions
-          return Failure(GenericSemanticError("Error at "+ token))
+          Failure(GenericSemanticError("Error at "+ token))
+        } else {
+          semanticStack.push(globalTable.lookup(e.result).head)
+          semanticStack.push(ARITHMETIC)
+          Success("SA complete")
         }
-        semanticStack.push(globalTable.lookup(e.result).head)
-        semanticStack.push(ARITHMETIC)
-        Success("SA complete")
       }
       case _ => Success("SA complete")
     }
   }
 
   def action54(token: Token) = {
-    val entry = symbolTable().lookup(token.value)
+    val entry = lookup(token.value)
     entry match {
       case Some(a: ProcedureEntry) => Success("SA complete")
       //expected array ID
@@ -956,6 +991,7 @@ class SemanticActions {
       case Action38 => action38(token)
       case Action39 => action39(token)
       case Action40 => semanticStack.push(token); Success("SA complete")
+      case Action41 => action41(token)
       case Action42 => action42(token)
       case Action43 => action43(token)
       case Action44 => action44(token)
@@ -965,7 +1001,7 @@ class SemanticActions {
       case Action48 => action48(token)
       case Action49 => action49(token)
       case Action50 => action50(token)
-      case Action51 => action51()
+      case Action51 => action51(token)
       case Action52 => action52(token)
       case Action53 => action53(token)
       case Action54 => action54(token)
@@ -982,31 +1018,37 @@ class SemanticActions {
     quad
   }
 
-  def gen(op: String): Quadruple = {
-    addQuadruple(Quadruple(op))
-  }
-
-  def gen(op: String, arg1: Any): Quadruple = {
-    addQuadruple(Quadruple(op, processArgument(arg1)))
-  }
-
-  def gen(op: String, arg1: Any, arg2: Any): Quadruple = {
-    addQuadruple(Quadruple(op, processArgument(arg1), processArgument(arg2)))
-  }
-
-  def gen(op: String, arg1: Any, arg2: Any, arg3: Any): Quadruple = {
-    addQuadruple(Quadruple(op, processArgument(arg1), processArgument(arg2),
-      processArgument(arg3)))
+  def gen(op: String, args: Any*): Quadruple = {
+    val arguments = args.map(processArgument(_))
+    val quad = arguments.length match {
+      case 0 => Some(Quadruple(op))
+      case 1 => Some(Quadruple(op, arguments(0)))
+      case 2 => Some(Quadruple(op, arguments(0), arguments(1)))
+      case 3 => Some(Quadruple(op, arguments(0), arguments(1), arguments(2)))
+      case _ => None
+    }
+    quad.map(addQuadruple).head
   }
 
   def genOffset(address: Int): String = {
-    if (global) "_" + address else "%" + address
+    val param = false
+    val addressAbs = address.abs
+    val reifiedAddress = if (global) "_" + addressAbs else "%" + addressAbs
+    if (param) "@" + reifiedAddress else reifiedAddress
+  }
+
+  def addConstant(id: ConstantEntry) = {
+    val tmp = create(id.dataType)
+    gen("move", id.name, tmp)
+    genOffset(tmp.address)
   }
 
   def processArgument(a: Any) = {
+    //param false as convenience, eventually need to resolve param to corect address with @
+    val param = false
     a match {
       case a: Address => genOffset(a.address)
-      case c: ConstantEntry => c.name
+      case c: ConstantEntry => addConstant(c)
       case f: FunctionEntry => globalTable.lookup(f.result).head match {
         case t: Address => genOffset(t.address) }
       case _ => a.toString
@@ -1048,17 +1090,19 @@ class SemanticActions {
     }
   }
 
-  def create(dType: String): SymbolTableEntry = {
+  def create(dType: String): VariableEntry = {
     val name = "$$" + "TEMP" + nextTmp()
     if (global) {
-      globalTable.insert(VariableEntry(name, -globalMemory, dType))
+      val entry = VariableEntry(name, -globalMemory, dType)
+      globalTable.insert(entry)
       globalMemory = globalMemory + 1
-      globalTable(name)
+      entry
     }
     else {
-      localTable.insert(VariableEntry(name, -localMemory, dType))
+      val entry = VariableEntry(name, -localMemory, dType)
+      localTable.insert(entry)
       localMemory = localMemory + 1
-      localTable(name)
+      entry
     }
   }
 
@@ -1071,8 +1115,15 @@ class SemanticActions {
     }
   }
 
+  def lookup(name: String): Option[Any] = {
+    symbolTable.lookup(name) match {
+      case None => globalTable.lookup(name)
+      case e => e
+    }
+  }
+
   def getTvi(): String = {
-    val body = quadruples.tail.foldLeft((0, "")){case ((index, output), quad) => {
+    val body = quadruples.tail.foldLeft((1, "")){case ((index, output), quad) => {
       (index + 1, output + "\n" + index + ":   " + quad.toString)
     }}._2
     quadruples.head.toString + body

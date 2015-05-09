@@ -1,24 +1,97 @@
 CODE
-0:   call main 0
-1:   exit
-2:   PROCBEGIN main
-3:   alloc 8
-4:   move 3 _1
-5:   mul _1 4 _-3
-6:   move _-3 _0
-7:   add _0 _1 _-4
-8:   ltof _-4 _-5
-9:   ltof 2 _-6
-10:   fdiv _-5 _-6 _-7
-11:   move _-7 _2
-12:   print <c> =
-13:   foutp _2
-14:   newl
-15:   print <b> =
-16:   outp _0
-17:   newl
-18:   print <a> =
-19:   outp _1
-20:   newl
-21:   free 8
-22:   PROCEND
+1:   call main, 0
+2:   exit
+3:   PROCBEGIN main
+4:   alloc 26
+5:   move 0, _2
+6:   move _2, _1
+7:   move 0, _3
+8:   beq _1, _3, 10
+9:   goto 15
+10:   print "<0> = "
+11:   move 0, _4
+12:   outp _4
+13:   newl
+14:   goto 35
+15:   move 1, _5
+16:   beq _1, _5, 18
+17:   goto 23
+18:   print "<1> = "
+19:   move 1, _6
+20:   outp _6
+21:   newl
+22:   goto 35
+23:   move 2, _7
+24:   beq _1, _7, 26
+25:   goto 31
+26:   print "<2> = "
+27:   move 2, _8
+28:   outp _8
+29:   newl
+30:   goto 35
+31:   print "<99> = "
+32:   move 99, _9
+33:   outp _9
+34:   newl
+35:   move 1, _10
+36:   move _10, _0
+37:   move 0, _11
+38:   beq _0, _11, 40
+39:   goto 45
+40:   print "<0> = "
+41:   move 0, _12
+42:   outp _12
+43:   newl
+44:   goto 65
+45:   move 1, _13
+46:   beq _0, _13, 48
+47:   goto 53
+48:   print "<1> = "
+49:   move 1, _14
+50:   outp _14
+51:   newl
+52:   goto 65
+53:   move 2, _15
+54:   beq _0, _15, 56
+55:   goto 61
+56:   print "<2> = "
+57:   move 2, _16
+58:   outp _16
+59:   newl
+60:   goto 65
+61:   print "<99> = "
+62:   move 99, _17
+63:   outp _17
+64:   newl
+65:   move 2, _18
+66:   move _18, _1
+67:   move 0, _19
+68:   beq _1, _19, 70
+69:   goto 75
+70:   print "<0> = "
+71:   move 0, _20
+72:   outp _20
+73:   newl
+74:   goto 95
+75:   move 1, _21
+76:   beq _1, _21, 78
+77:   goto 83
+78:   print "<1> = "
+79:   move 1, _22
+80:   outp _22
+81:   newl
+82:   goto 95
+83:   move 2, _23
+84:   beq _1, _23, 86
+85:   goto 91
+86:   print "<2> = "
+87:   move 2, _24
+88:   outp _24
+89:   newl
+90:   goto 95
+91:   print "<99> = "
+92:   move 99, _25
+93:   outp _25
+94:   newl
+95:   free 26
+96:   PROCEND
