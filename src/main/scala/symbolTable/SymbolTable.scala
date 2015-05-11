@@ -21,8 +21,11 @@ trait Params {
   val parameterInfo: List[SymbolTableEntry with DataEntry]
 }
 
+trait Param {
+  val param: Boolean
+}
 
-case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int) extends SymbolTableEntry with DataEntry with Address
+case class ArrayEntry(name: String, address: Int, dataType: String, upperBound: Int, lowerBound: Int, param: Boolean = false) extends SymbolTableEntry with DataEntry with Address with Param
 
 case class ConstantEntry(name: String, dataType: String) extends SymbolTableEntry with DataEntry
 
@@ -30,7 +33,7 @@ case class FunctionEntry(name: String, numberOfParameters: Int, parameterInfo: L
 
 case class ProcedureEntry(name: String, numberOfParameters: Int, parameterInfo: List[SymbolTableEntry with DataEntry]) extends SymbolTableEntry with Params
 
-case class VariableEntry(name: String, address: Int, dataType: String) extends SymbolTableEntry with DataEntry with Address
+case class VariableEntry(name: String, address: Int, dataType: String, param: Boolean = false) extends SymbolTableEntry with DataEntry with Address with Param
 
 
 class SymbolTable extends HashMap[String, SymbolTableEntry] {

@@ -11,12 +11,12 @@ begin
                 write(2)
         else write (99);
 
-        j := 1;
-        if j = 0 then
+        i := 1;
+        if i = 0 then
                 write(0)
-        else if j = 1 then
+        else if i = 1 then
                 write(1)
-        else if j = 2 then
+        else if i = 2 then
                 write(2)
         else write (99);
 

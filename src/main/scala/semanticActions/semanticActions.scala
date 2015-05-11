@@ -251,10 +251,10 @@ class SemanticActions {
         val ub = semanticStack.popT[Token with CONSTANT]().value.toInt
         val lb = semanticStack.popT[Token with CONSTANT]().value.toInt
         val id = semanticStack.popT[IDENTIFIER]()
-        ArrayEntry(id.value, localMemory, iType.toString, ub, lb)
+        ArrayEntry(id.value, localMemory, iType.toString, ub, lb, true)
       } else {
         val id = semanticStack.popT[IDENTIFIER]()
-        VariableEntry(id.value, localMemory, iType.toString)
+        VariableEntry(id.value, localMemory, iType.toString, true)
       }
       symbolTable().insert(entry)
       entry +=: params
@@ -806,7 +806,7 @@ class SemanticActions {
       params += id
     }
     println("params" + params)
-    params.foreach(id => gen("param", id.name))
+    params.foreach(id => gen("param", id))
     val pc = parmCount.pop()
     val np = nextParm.pop()
     val eType = semanticStack.pop()
@@ -840,7 +840,7 @@ class SemanticActions {
         params += id
       }
       println("params" + params)
-      params.foreach(id => gen("param", id.name))
+      params.foreach(id => gen("param", id))
       val pc = parmCount.pop()
       val np = nextParm.pop()
       val eType = semanticStack.pop()
@@ -903,7 +903,7 @@ class SemanticActions {
     } else {
       gen("call", func.name, 0)
       val tmp = create(func.dataType)
-      gen("move", func.result, tmp)
+      gen("move", func, tmp)
       semanticStack.push(tmp)
       semanticStack.push(ARITHMETIC)
       Success("SA complete")
@@ -1019,38 +1019,56 @@ class SemanticActions {
   }
 
   def gen(op: String, args: Any*): Quadruple = {
-    val arguments = args.map(processArgument(_))
-    val quad = arguments.length match {
-      case 0 => Some(Quadruple(op))
-      case 1 => Some(Quadruple(op, arguments(0)))
-      case 2 => Some(Quadruple(op, arguments(0), arguments(1)))
-      case 3 => Some(Quadruple(op, arguments(0), arguments(1), arguments(2)))
-      case _ => None
+    (op, args.headOption) match {
+      //special case param
+      case ("param", Some(s: SymbolTableEntry with Address with Param)) => {
+        val reifiedAddresss = if (s.param) "%" + s.address.abs else "@" + getReifiedAddress(s)
+        addQuadruple(Quadruple(op, reifiedAddresss))
+      }
+      case _ => {
+        val arguments = args.map(processArgument(_))
+        val quad = arguments.length match {
+          case 0 => Some(Quadruple(op))
+          case 1 => Some(Quadruple(op, arguments(0)))
+          case 2 => Some(Quadruple(op, arguments(0), arguments(1)))
+          case 3 => Some(Quadruple(op, arguments(0), arguments(1), arguments(2)))
+          case _ => None
+        }
+        quad.map(addQuadruple).head
+      }
     }
-    quad.map(addQuadruple).head
   }
 
-  def genOffset(address: Int): String = {
-    val param = false
-    val addressAbs = address.abs
-    val reifiedAddress = if (global) "_" + addressAbs else "%" + addressAbs
-    if (param) "@" + reifiedAddress else reifiedAddress
+  def getReifiedAddress(entry: SymbolTableEntry with Address): String = {
+    val addressAbs = entry.address.abs
+    if (localTable.lookup(entry.name).nonEmpty) {
+      "%" + addressAbs
+    } else {
+      "_" + addressAbs
+    }
+  }
+
+  def genOffset(entry: SymbolTableEntry with Address, param: Boolean): String = {
+    val addressAbs = entry.address.abs
+    //param special case, always local
+    if (param) "^%" + addressAbs else getReifiedAddress(entry)
   }
 
   def addConstant(id: ConstantEntry) = {
     val tmp = create(id.dataType)
     gen("move", id.name, tmp)
-    genOffset(tmp.address)
+    genOffset(tmp, false)
   }
 
   def processArgument(a: Any) = {
     //param false as convenience, eventually need to resolve param to corect address with @
     val param = false
     a match {
-      case a: Address => genOffset(a.address)
+      case p: SymbolTableEntry with Param with Address => genOffset(p, p.param)
+      case a: SymbolTableEntry with Address => genOffset(a, false)
       case c: ConstantEntry => addConstant(c)
       case f: FunctionEntry => globalTable.lookup(f.result).head match {
-        case t: Address => genOffset(t.address) }
+        case t: SymbolTableEntry with Address => genOffset(t, false) }
       case _ => a.toString
     }
   }
