@@ -4,12 +4,12 @@ var
 
 function Sum(a,b:integer): result integer;
 begin
-        Sum := a + b
+        Sum := a - b
 end
 
 begin
         i := 10;
         j := 20;
-        k := Sum(i,j) * 2;
+        k := Sum(j,i) * 2;
         write(k)
 end.

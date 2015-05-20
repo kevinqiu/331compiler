@@ -257,11 +257,20 @@ class SemanticActions {
         val id = semanticStack.popT[IDENTIFIER]()
         VariableEntry(id.value, localMemory, iType.toString, true)
       }
-      symbolTable().insert(entry)
       entry +=: params
+    }
+    //params were popped in reverse order so we have to wait until all are
+    //popped before we can assign them the correct memory address
+    params.map(p => {
+      val entry = p match {
+        case a: ArrayEntry => a.copy(address = localMemory)
+        case v: VariableEntry => v.copy(address = localMemory)
+      }
+      symbolTable().insert(entry)
       localMemory = localMemory + 1
       parmCount.push(parmCount.pop() + 1)
-    }
+      entry
+    })
     val procedure = semanticStack.popT[SymbolTableEntry]()
     val newEntry = globalTable.lookup(procedure.name) match {
       case Some(p: ProcedureEntry) => Success(p.copy(parameterInfo = (p.parameterInfo ++ params).toList))
@@ -975,7 +984,7 @@ class SemanticActions {
     println(action)
     println(semanticStack)
     println(token)
-    action match {
+    val result = action match {
       case Action1 => insert = true; Success("SA complete")
       case Action2 => insert = false; Success("SA complete")
       case Action3 => action3(token)
@@ -1028,6 +1037,9 @@ class SemanticActions {
       case Action56 => action56()
       case _ => Failure(GenericSemanticError("SA doesn't exist"))
     }
+    //temporary fix to handle match exceptions from popT & family
+    //ideally no exceptions thrown when error is encountered
+    Try(result).flatten
   }
 
 
