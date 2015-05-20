@@ -45,9 +45,7 @@ case class Quadruple(opCode: String, arg1: String = "", arg2: String = "", arg3:
         ""
       }
     }
-    val raw = opCode match {
-      case _ => (opCode + " " + printArg(arg1) + " " + printArg(arg2) + " " + arg3).trim
-    }
+    val raw = (opCode + " " + printArg(arg1) + " " + printArg(arg2) + " " + arg3).trim
     if (raw.last == ',') raw.init else raw
   }
 }
@@ -324,7 +322,6 @@ class SemanticActions {
     val eFalse = semanticStack.popT[List[Int]]()
     val eTrue = semanticStack.popT[List[Int]]()
     val beginLoop = semanticStack.popT[Integer]()
-
     gen("goto", beginLoop)
     backPatch(eFalse, nextQuad)
     Success("SA complete")
@@ -402,7 +399,7 @@ class SemanticActions {
     val entry = lookup(token.value)
     entry match {
       case Some(a: ArrayEntry) => Success("SA complete")
-        //expected array ID
+      //expected array ID
       case _ => Failure(GenericSemanticError("Error at "+ token))
     }
   }
@@ -430,7 +427,7 @@ class SemanticActions {
     }
   }
 
-  //different from specifications? change on 17/5/15
+  //different from specifications? see change on 17/5/15
   def action34(token: Token) = {
     if (semanticStack.nonEmpty &&
       semanticStack.head.isInstanceOf[FunctionEntry]) {
@@ -465,12 +462,14 @@ class SemanticActions {
     }
   }
 
-  //not finished, check for variable, constant, ect. not implemented
   //array param not implemented
   def action37(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
+    //top used for error checking
+    val top = semanticStack.head()
     if (eType != ARITHMETIC) {
       Failure(GenericSemanticError("Error at "+ token))
+      //!(top.isInstanceOf[VariableEntry] || top.isInstanceOf[ConstantEntry] || top.isInstanceOf[ArrayEntry])
     } else if (false) {
       Failure(GenericSemanticError("Error at "+ token))
     } else {
@@ -555,7 +554,6 @@ class SemanticActions {
     }
   }
 
-  //not finished
   def action42(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
     if (token == addOps.or) {
@@ -565,7 +563,6 @@ class SemanticActions {
       val eFalse = semanticStack.headT[List[Int]]()
       backPatch(eFalse, nextQuad)
     } else if (eType == ARITHMETIC) {
-
     }
     semanticStack.push(token)
     Success("SA complete")
@@ -574,7 +571,6 @@ class SemanticActions {
   def action43(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
     if (eType == RELATIONAL) {
-      //not sure of order of popping, check when there's an example
       val e2False = semanticStack.popT[List[Int]]()
       val e2True = semanticStack.popT[List[Int]]()
       val operator = semanticStack.popT[Token]()
@@ -640,10 +636,8 @@ class SemanticActions {
     Success("SA complete")
   }
 
-  //check order of popping
   def action45(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
-    //check false/true order
     if (eType == RELATIONAL) {
       val e2False = semanticStack.popT[List[Int]]()
       val e2True = semanticStack.popT[List[Int]]()
