@@ -39,11 +39,11 @@ case class VariableEntry(name: String, address: Int, dataType: String, param: Bo
 class SymbolTable extends HashMap[String, SymbolTableEntry] {
 
   def lookup(name: String): Option[SymbolTableEntry] = {
-    this.get(name)
+    this.get(name.toLowerCase)
   }
 
   def insert(entry: SymbolTableEntry): Option[SymbolTableEntry] = {
-    this.put(entry.name, entry)
+    this.put(entry.name.toLowerCase, entry)
   }
 
   def dumpTable(): Unit = {

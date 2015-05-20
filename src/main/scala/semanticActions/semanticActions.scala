@@ -242,7 +242,6 @@ class SemanticActions {
     })
   }
 
-  //not complete
   def action21(token: Token) = {
     val iType = semanticStack.popT[Token]()
     var params = ListBuffer[SymbolTableEntry with DataEntry]()
@@ -356,7 +355,6 @@ class SemanticActions {
   }
 
   def action30(token: Token) = {
-    println(global)
     val id = token.value
     val result = lookup(id)
     result match {
@@ -432,7 +430,7 @@ class SemanticActions {
     }
   }
 
-  //not complete
+  //different from specifications? change on 17/5/15
   def action34(token: Token) = {
     if (semanticStack.nonEmpty &&
       semanticStack.head.isInstanceOf[FunctionEntry]) {
@@ -833,7 +831,6 @@ class SemanticActions {
       localMemory = localMemory + 1
       params += id
     }
-    println("params" + params)
     params.reverse.foreach(id => gen("param", id))
     val pc = parmCount.pop()
     val np = nextParm.pop()
@@ -867,7 +864,6 @@ class SemanticActions {
         localMemory = localMemory + 1
         params += id
       }
-      println("params" + params)
       params.reverse.foreach(id => gen("param", id))
       val pc = parmCount.pop()
       val np = nextParm.pop()
@@ -886,7 +882,7 @@ class SemanticActions {
       val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
       params += id
     }
-    params.foreach(id => {
+    params.reverse.foreach(id => {
       gen("print", "\"<"+id.name+ "> = \"")
       if (id.dataType == DTYPE.real) {
         gen("foutp", id)
@@ -1113,8 +1109,6 @@ class SemanticActions {
   }
 
   def backPatch(previousList: List[Int], target: Int) = {
-    println("backpatching")
-    println("prev " + previousList + "target " + target)
     def replaceTarget(p: Quadruple) = {
       if (p.arg2.isEmpty) {
         p.copy(arg1 = target.toString)
