@@ -8,15 +8,6 @@ import collection.mutable.{Stack, ListBuffer}
 import scala.reflect.ClassTag
 
 class SemanticStack[A] extends Stack[A] {
-  //holdover from before reflection, replace ASAP
-  def popString(): String = {
-    val element = this.pop()
-    element match {
-      case t: Token => t.value.toLowerCase
-      case s: String => s
-      case _ => ""
-    }
-  }
 
   def popT[T: ClassTag]() = {
     val element = this.pop()
@@ -101,6 +92,7 @@ class SemanticActions {
       case addOps.- => "sub"
       case mulOps.* => "mul"
       case mulOps.div => "div"
+      case mulOps./ => "div"
     }
   }
 
@@ -116,17 +108,17 @@ class SemanticActions {
   }
 
   def action3(token: Token) = {
-    val dataType = semanticStack.popString()
+    val dataType = semanticStack.popT[Token]().toString
 
     if (isArray) {
 
-      val upperBound = semanticStack.popString().toInt
-      val lowerBound = semanticStack.popString().toInt
+      val upperBound = semanticStack.popT[Token with CONSTANT]().value.toInt
+      val lowerBound = semanticStack.popT[Token with CONSTANT]().value.toInt
       val mSize = upperBound - lowerBound + 1
 
       while (semanticStack.nonEmpty &&
         semanticStack.head.isInstanceOf[IDENTIFIER]) {
-        val id = semanticStack.popString()
+        val id = semanticStack.popT[IDENTIFIER]().value
         if (global) {
           globalTable.insert(ArrayEntry(id, globalMemory, dataType, upperBound, lowerBound))
           globalMemory = globalMemory + mSize
@@ -138,7 +130,7 @@ class SemanticActions {
     } else {
 
       while (semanticStack.nonEmpty && semanticStack.head.isInstanceOf[IDENTIFIER]) {
-        val id = semanticStack.popString()
+        val id = semanticStack.popT[IDENTIFIER]().value
         if (global) {
           globalTable.insert(VariableEntry(id, globalMemory, dataType))
           globalMemory = globalMemory + 1
@@ -167,7 +159,7 @@ class SemanticActions {
 
   def action9(token: Token) = {
     while (semanticStack.nonEmpty && semanticStack.head.isInstanceOf[IDENTIFIER]) {
-      val id = semanticStack.popString()
+      val id = semanticStack.popT[IDENTIFIER]().value
       //picked abritary 0 for address entry, not sure if correct, revist later
       globalTable.insert(VariableEntry(id, 0, "restricted"))
     }
@@ -298,7 +290,12 @@ class SemanticActions {
     if (eType != RELATIONAL) {
       Failure(GenericSemanticError("Error at "+ token))
     } else {
-      backPatch(semanticStack.headT[List[Int]](), nextQuad)
+      //pop false to get to true
+      val eFalse = semanticStack.popT[List[Int]]()
+      val eTrue = semanticStack.headT[List[Int]]()
+      backPatch(eTrue, nextQuad)
+      //put false back
+      semanticStack.push(eFalse)
       Success("SA complete")
     }
   }
@@ -607,12 +604,15 @@ class SemanticActions {
     Success("SA complete")
   }
 
-  //incomplete relational action
   def action44(token: Token) = {
     val eType = semanticStack.popT[ETYPE]()
     if (eType == RELATIONAL && token == mulOps.and) {
+      //pop false to get to true
+      val eFalse = semanticStack.popT[List[Int]]()
       val eTrue = semanticStack.headT[List[Int]]()
       backPatch(eTrue, nextQuad)
+      //put false back
+      semanticStack.push(eFalse)
     }
     semanticStack.push(token)
     Success("SA complete")
@@ -725,6 +725,9 @@ class SemanticActions {
   }
 
   def action46(token: Token): Try[String] = {
+    def parseNum(num: String) = {
+      if (num.contains("e")) num.toDouble.toLong.toString else num
+    }
     val id = token.value
     if (token.isInstanceOf[IDENTIFIER]) {
       val result = lookup(id)
@@ -735,11 +738,12 @@ class SemanticActions {
     } else {
       token match {
         case t: CONSTANT => {
-          val result = constantTable.lookup(id)
+          val num =  parseNum(id)
+          val result = constantTable.lookup(num)
           result match {
             case Some(res) => semanticStack.push(res)
             case None => {
-              val const = ConstantEntry(id, t.getType)
+              val const = ConstantEntry(num, t.getType)
               constantTable.insert(const)
               semanticStack.push(const)
             }
@@ -806,7 +810,7 @@ class SemanticActions {
       params += id
     }
     println("params" + params)
-    params.foreach(id => gen("param", id))
+    params.reverse.foreach(id => gen("param", id))
     val pc = parmCount.pop()
     val np = nextParm.pop()
     val eType = semanticStack.pop()
@@ -840,7 +844,7 @@ class SemanticActions {
         params += id
       }
       println("params" + params)
-      params.foreach(id => gen("param", id))
+      params.reverse.foreach(id => gen("param", id))
       val pc = parmCount.pop()
       val np = nextParm.pop()
       val eType = semanticStack.pop()
@@ -879,7 +883,7 @@ class SemanticActions {
       val id = semanticStack.popT[SymbolTableEntry with DataEntry]()
       params += id
     }
-    params.foreach(id => {
+    params.reverse.foreach(id => {
       if (id.dataType == DTYPE.real) {
         gen("finp", id)
       } else {
