@@ -9,6 +9,7 @@ import scala.reflect.ClassTag
 
 class SemanticStack[A] extends Stack[A] {
 
+  //TODO: return option instead of generating match error
   def popT[T: ClassTag]() = {
     val element = this.pop()
     element match {
@@ -193,17 +194,22 @@ class SemanticActions {
   def action16(token: Token) = {
     val eType = semanticStack.popT[DataType]().toString
     val entry = semanticStack.popT[SymbolTableEntry]()
-    val newEntry = globalTable.lookup(entry.name) match {
-      case Some(f: FunctionEntry) => f.copy(dataType = eType)
+    for {
+      newEntry <- globalTable.lookup(entry.name) match {
+        case Some(f: FunctionEntry) => Success(f.copy(dataType = eType))
+        case _ => Failure(GenericSemanticError("Error at "+ token))
+      }
+      newResult <- globalTable.lookup(newEntry.result) match {
+        case Some(v: VariableEntry) => Success(v.copy(dataType = eType))
+        case _ => Failure(GenericSemanticError("Error at "+ token))
+      }
+    } yield {
+      currentFunction = newEntry
+      globalTable.insert(newEntry)
+      globalTable.insert(newResult)
+      semanticStack.push(newEntry)
+      "SA complete"
     }
-    val newResult = globalTable.lookup(newEntry.result) match {
-      case Some(v: VariableEntry) => v.copy(dataType = eType)
-    }
-    currentFunction = newEntry
-    globalTable.insert(newEntry)
-    globalTable.insert(newResult)
-    semanticStack.push(newEntry)
-    Success("SA complete")
   }
 
   def action17(token: Token) = {
@@ -225,12 +231,15 @@ class SemanticActions {
     val parms = parmCount.pop()
     val entry = semanticStack.popT[SymbolTableEntry]()
     val newEntry = globalTable.lookup(entry.name) match {
-      case Some(p: ProcedureEntry) => p.copy(numberOfParameters = parms)
-      case Some(f: FunctionEntry) => f.copy(numberOfParameters = parms)
+      case Some(p: ProcedureEntry) => Success(p.copy(numberOfParameters = parms))
+      case Some(f: FunctionEntry) => Success(f.copy(numberOfParameters = parms))
+      case _ => Failure(GenericSemanticError("Error at "+ token))
     }
-    globalTable.insert(newEntry)
-    semanticStack.push(newEntry)
-    Success("SA complete")
+    newEntry.map(ne => {
+      globalTable.insert(ne)
+      semanticStack.push(ne)
+      "SA complete"
+    })
   }
 
   //not complete
@@ -255,13 +264,16 @@ class SemanticActions {
     }
     val procedure = semanticStack.popT[SymbolTableEntry]()
     val newEntry = globalTable.lookup(procedure.name) match {
-      case Some(p: ProcedureEntry) => p.copy(parameterInfo = (p.parameterInfo ++ params).toList)
-      case Some(f: FunctionEntry) => f.copy(parameterInfo = (f.parameterInfo ++ params).toList)
+      case Some(p: ProcedureEntry) => Success(p.copy(parameterInfo = (p.parameterInfo ++ params).toList))
+      case Some(f: FunctionEntry) => Success(f.copy(parameterInfo = (f.parameterInfo ++ params).toList))
+      case _ => Failure(GenericSemanticError("Error at "+ token))
     }
-    globalTable.insert(newEntry)
-    semanticStack.push(newEntry)
-    isArray = false
-    Success("SA complete")
+    newEntry.map(ne => {
+      globalTable.insert(ne)
+      semanticStack.push(ne)
+      isArray = false
+      "SA complete"
+    })
   }
 
   def action22(token: Token) = {
@@ -426,10 +438,13 @@ class SemanticActions {
   def action35(token: Token) = {
     parmCount.push(0)
     val parmInfo = globalTable.lookup(token.value) match {
-      case Some(p: ProcedureEntry) => p.parameterInfo
+      case Some(p: ProcedureEntry) => Success(p.parameterInfo)
+      case _ => Failure(GenericSemanticError("Error at "+ token))
     }
-    nextParm.push(parmInfo)
-    Success("SA complete")
+    parmInfo.map(pi => {
+      nextParm.push(pi)
+      "SA complete"
+    })
   }
 
   def action36(token: Token) = {
