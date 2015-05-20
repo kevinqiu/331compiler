@@ -1026,7 +1026,7 @@ class SemanticActions {
       case Action54 => action54(token)
       case Action55 => action55()
       case Action56 => action56()
-      case _ => println("action not yet implemented"); Success("SA complete")
+      case _ => Failure(GenericSemanticError("SA doesn't exist"))
     }
   }
 

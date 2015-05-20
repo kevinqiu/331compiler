@@ -26,12 +26,16 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
         case nt: NonTerminal => parseTableLookUp(current, nt)
         case a: SemanticAction => {
           stack.pop()
-          semanticActions.execute(a, last)
+          semanticActions.execute(a, last) match {
+            case s: Success[String] => s
+            case Failure(e) => Failure(GenericSemanticError(e.getMessage +
+                " on line "+ lexicalAnalyzer.getLineNumber()))
+          }
         }
       }
       if (result.isFailure) {
         println(result)
-        //valid = false
+        valid = false
       }
     }
     println("Quadruples")
