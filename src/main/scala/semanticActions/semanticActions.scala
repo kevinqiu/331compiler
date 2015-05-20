@@ -466,7 +466,7 @@ class SemanticActions {
   def action37(token: Token): Try[String] = {
     val eType = semanticStack.popT[ETYPE]()
     //top used for error checking
-    val top = semanticStack.head()
+    val top = semanticStack.head
     if (eType != ARITHMETIC) {
       Failure(GenericSemanticError("Error at "+ token))
       //!(top.isInstanceOf[VariableEntry] || top.isInstanceOf[ConstantEntry] || top.isInstanceOf[ArrayEntry])
@@ -971,9 +971,6 @@ class SemanticActions {
   }
 
   def execute(action: SemanticAction, token: Token): Try[String] = {
-    println(action)
-    println(semanticStack)
-    println(token)
     val result = action match {
       case Action1 => insert = true; Success("SA complete")
       case Action2 => insert = false; Success("SA complete")
