@@ -34,12 +34,11 @@ class Parser(lexicalAnalyzer: LexicalAnalyzer) {
         }
       }
       if (result.isFailure) {
+        println("Error Encountered")
         println(result)
         valid = false
       }
     }
-    println("Quadruples")
-    semanticActions.quadruples.foreach(println(_))
     results.toList
     semanticActions.getTvi()
   }

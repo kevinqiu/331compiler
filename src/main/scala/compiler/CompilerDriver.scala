@@ -14,6 +14,7 @@ object Compiler {
       val bw = new BufferedWriter(new FileWriter(writeFile))
       bw.write(tvi)
       bw.close()
+      println("TVI written to output.tvi")
     }
   }
 }
